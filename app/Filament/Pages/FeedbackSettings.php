@@ -20,6 +20,14 @@ class FeedbackSettings extends Page
 
     protected string $view = 'filament.pages.feedback-settings';
 
+    /**
+     * Nur der Web-Admin schaltet das Feedback-Widget global.
+     */
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->role->managesSettings() ?? false;
+    }
+
     public static function isEnabled(): bool
     {
         return Setting::feedbackWidgetEnabled();

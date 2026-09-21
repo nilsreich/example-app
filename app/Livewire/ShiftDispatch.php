@@ -11,6 +11,7 @@ use App\Services\ShiftAssignmentService;
 use App\Services\ShiftOptimizationRunner;
 use App\Services\ShiftRollbackService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
 /**
@@ -56,7 +57,11 @@ class ShiftDispatch extends Component
 
     public function runOptimization(ShiftOptimizationRunner $runner): void
     {
-        $optimization = $runner->run(Shift::findOrFail($this->shiftId));
+        $shift = Shift::findOrFail($this->shiftId);
+
+        Gate::authorize('update', $shift);
+
+        $optimization = $runner->run($shift);
 
         $this->optimizationId = $optimization->id;
         $this->loadDrafts();
@@ -66,6 +71,9 @@ class ShiftDispatch extends Component
     public function assignProposal(int $proposalId, ShiftAssignmentService $assignments): void
     {
         $proposal = $this->optimization()->proposals()->findOrFail($proposalId);
+
+        // Rechtematrix: Nur Dispositionsrollen im eigenen Abteilungs-Scope.
+        Gate::authorize('update', $proposal->optimization->shift);
 
         // Editierter Benachrichtigungstext wird mit dem Vorschlag versioniert.
         if (array_key_exists($proposal->id, $this->drafts)) {
@@ -123,7 +131,11 @@ class ShiftDispatch extends Component
             'rollbackReason' => 'Rückrollgrund',
         ]);
 
-        $rollbacks->rollback(Shift::findOrFail($this->shiftId), $this->rollbackReason, $this->cancellationMessage);
+        $shift = Shift::findOrFail($this->shiftId);
+
+        Gate::authorize('update', $shift);
+
+        $rollbacks->rollback($shift, $this->rollbackReason, $this->cancellationMessage);
 
         $this->showRollbackModal = false;
         $this->rollbackReason = '';

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\Shift;
+use App\Models\User;
 use App\Pipelines\MockDeterministicPipeline;
 use App\Services\RoiCalculatorService;
 use App\Services\RoiMetricsService;
@@ -65,5 +66,30 @@ class RoiMetricsTest extends TestCase
         $this->assertCount(14, $savings['labels']);
         $this->assertCount(14, $savings['costs']);
         $this->assertSame(0.0, array_sum($savings['costs']));
+    }
+
+    public function test_metrics_respect_department_scope_for_bereichsleiter(): void
+    {
+        // Zwei gelöste Konflikte: je einer in Logistik und Produktion.
+        foreach (['Logistik', 'Produktion'] as $department) {
+            $shift = Shift::factory()->create(['department' => $department, 'required_qualifications' => []]);
+            Employee::factory()->create(['department' => $department]);
+            $optimization = $this->fastRunner()->run($shift);
+            app(ShiftAssignmentService::class)->assign($shift, $optimization->proposals->first()->employee);
+        }
+
+        $bereichsleiter = User::factory()->bereichsleiter('Logistik')->create();
+
+        $scoped = (new RoiMetricsService(new RoiCalculatorService))->forUser($bereichsleiter);
+
+        // Nur der Logistik-Konflikt zählt (45 Min × 65 €/h = 48,75 €).
+        $this->assertSame(1, $scoped->resolvedConflicts());
+        $this->assertSame(48.75, $scoped->savedCostsEur());
+        // Schichtstatus im Scope: 1 zugewiesene Schicht in Logistik.
+        $this->assertSame(1, $scoped->shiftStatusDistribution()['data'][1]);
+
+        // Web-Admin sieht beide Konflikte.
+        $global = (new RoiMetricsService(new RoiCalculatorService))->forUser(User::factory()->create());
+        $this->assertSame(2, $global->resolvedConflicts());
     }
 }

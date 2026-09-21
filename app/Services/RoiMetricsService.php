@@ -9,10 +9,16 @@ use App\Models\Shift;
 use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Kennzahlen-Ebene für ROI-Dashboard: Aggregiert DB-Fakten und delegiert
  * die reine Arithmetik an RoiCalculatorService (unit-testbar).
+ *
+ * Wichtig für die Rollen-Sichten: Über forUser() wird der Abteilungs-Scope
+ * gesetzt – Bereichsleiter sehen nur die Zahlen ihrer Abteilung, sonst
+ * widersprechen sich Dashboard und gefilterte Schichtenliste.
  *
  * "Gelöster Konflikt" = initiale Zuweisung (Append im Forward-Ledger).
  * "Ohne Nacharbeit übernommen" = besetzte Schicht, deren jüngstes
@@ -20,13 +26,28 @@ use App\Models\ShiftProposal;
  */
 class RoiMetricsService
 {
+    /**
+     * @var array<int, string>|null null = keine Abteilungs-Einschränkung.
+     */
+    private ?array $departments = null;
+
     public function __construct(
         private readonly RoiCalculatorService $calculator,
     ) {}
 
+    /**
+     * Kennzahlen-Scope der Rolle setzen (Bereichsleiter → eigene Abteilung).
+     */
+    public function forUser(?User $user): self
+    {
+        $this->departments = $user?->visibleDepartments();
+
+        return $this;
+    }
+
     public function resolvedConflicts(): int
     {
-        return ShiftAuditEvent::where('event_type', AuditEventType::InitialAssignment)->count();
+        return $this->auditEvents()->count();
     }
 
     public function savedCostsEur(): float
@@ -39,7 +60,8 @@ class RoiMetricsService
         $adopted = 0;
         $total = 0;
 
-        Shift::where('status', ShiftStatus::Assigned)
+        $this->shifts()
+            ->where('status', ShiftStatus::Assigned)
             ->with('optimizations.proposals.feedbacks')
             ->chunk(100, function ($shifts) use (&$adopted, &$total): void {
                 foreach ($shifts as $shift) {
@@ -66,7 +88,13 @@ class RoiMetricsService
 
     public function averageConfidence(): ?float
     {
-        return $this->calculator->averageConfidence(ShiftProposal::pluck('score')->all());
+        $query = ShiftProposal::query();
+
+        if ($this->departments !== null) {
+            $query->whereHas('optimization.shift', fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
+        }
+
+        return $this->calculator->averageConfidence($query->pluck('score')->all());
     }
 
     /**
@@ -78,7 +106,7 @@ class RoiMetricsService
     {
         $since = now()->subDays($days - 1)->startOfDay();
 
-        $perDay = ShiftAuditEvent::where('event_type', AuditEventType::InitialAssignment)
+        $perDay = $this->auditEvents()
             ->where('created_at', '>=', $since)
             ->selectRaw('date(created_at) as day, count(*) as conflicts')
             ->groupBy('day')
@@ -102,7 +130,11 @@ class RoiMetricsService
      */
     public function shiftStatusDistribution(): array
     {
-        $counts = Shift::selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status')->all();
+        $counts = $this->shifts()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->all();
 
         return [
             'labels' => [ShiftStatus::Open->label(), ShiftStatus::Assigned->label(), ShiftStatus::Cancelled->label()],
@@ -119,7 +151,13 @@ class RoiMetricsService
      */
     public function feedbackDistribution(): array
     {
-        $counts = ShiftFeedback::selectRaw('rating, count(*) as total')->groupBy('rating')->pluck('total', 'rating')->all();
+        $query = ShiftFeedback::query();
+
+        if ($this->departments !== null) {
+            $query->whereHas('proposal.optimization.shift', fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
+        }
+
+        $counts = $query->selectRaw('rating, count(*) as total')->groupBy('rating')->pluck('total', 'rating')->all();
 
         return [
             'labels' => [FeedbackRating::Positive->label(), FeedbackRating::Negative->label()],
@@ -128,5 +166,33 @@ class RoiMetricsService
                 (int) ($counts[FeedbackRating::Negative->value] ?? 0),
             ],
         ];
+    }
+
+    /**
+     * Ledger-Events im aktuellen Abteilungs-Scope.
+     */
+    private function auditEvents(): Builder
+    {
+        $query = ShiftAuditEvent::query()->where('event_type', AuditEventType::InitialAssignment);
+
+        if ($this->departments !== null) {
+            $query->whereHas('shift', fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
+        }
+
+        return $query;
+    }
+
+    /**
+     * Schicht-Query im aktuellen Abteilungs-Scope.
+     */
+    private function shifts(): Builder
+    {
+        $query = Shift::query();
+
+        if ($this->departments !== null) {
+            $query->whereIn('department', $this->departments);
+        }
+
+        return $query;
     }
 }

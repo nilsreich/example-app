@@ -9,11 +9,16 @@ class FeedbackChartWidget extends ChartWidget
 {
     protected static bool $isLazy = false;
 
+    public static function canView(): bool
+    {
+        return (bool) auth()->user()?->role->seesMetrics();
+    }
+
     protected ?string $heading = 'Feedback zu KI-Vorschlägen';
 
     protected function getData(): array
     {
-        $distribution = app(RoiMetricsService::class)->feedbackDistribution();
+        $distribution = app(RoiMetricsService::class)->forUser(auth()->user())->feedbackDistribution();
 
         return [
             'labels' => $distribution['labels'],

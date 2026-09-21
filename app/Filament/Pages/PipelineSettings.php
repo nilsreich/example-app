@@ -21,6 +21,14 @@ class PipelineSettings extends Page
 
     protected string $view = 'filament.pages.pipeline-settings';
 
+    /**
+     * Nur der Web-Admin steuert die KI-Pipeline (Systemeinstellung).
+     */
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->role->managesSettings() ?? false;
+    }
+
     public static function getDriverOptions(): array
     {
         return [

@@ -9,11 +9,16 @@ class ShiftStatusChartWidget extends ChartWidget
 {
     protected static bool $isLazy = false;
 
+    public static function canView(): bool
+    {
+        return (bool) auth()->user()?->role->seesMetrics();
+    }
+
     protected ?string $heading = 'Schichtstatus-Verteilung';
 
     protected function getData(): array
     {
-        $distribution = app(RoiMetricsService::class)->shiftStatusDistribution();
+        $distribution = app(RoiMetricsService::class)->forUser(auth()->user())->shiftStatusDistribution();
 
         return [
             'labels' => $distribution['labels'],

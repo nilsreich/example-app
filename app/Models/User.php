@@ -3,12 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -21,7 +23,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
- * @property string $role
+ * @property UserRole $role
+ * @property string|null $department
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -31,7 +34,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'role', 'password'])]
+#[Fillable(['name', 'email', 'role', 'department', 'password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, PasskeyUser
 {
@@ -48,16 +51,40 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => UserRole::class,
         ];
     }
 
     /**
-     * Demo-Rollenmodell (kiventro B2E): "admin" und "disponent" dürfen ins
-     * Admin-Panel. Für Produktion hier echte Rollen-/Team-Prüfung ergänzen.
+     * Mitarbeiter-Datensatz zur Login-Rolle (nur für Self-Service-Rolle "nutzer").
+     */
+    public function employee(): HasOne
+    {
+        return $this->hasOne(Employee::class);
+    }
+
+    /**
+     * Demo-Rollenmodell (kiventro B2E): alle vier Rollen kommen ins Panel,
+     * die Sicht unterscheidet sich über Policies, Navigation und Widgets.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return in_array($this->role, ['admin', 'disponent'], true);
+        return $this->role->canAccessPanel();
+    }
+
+    /**
+     * Abteilungs-Scope: Bereichsleiter sehen nur ihre Abteilung.
+     * Leere Abteilung = keine Einschränkung (Web-Admin/Geschäftsführung).
+     *
+     * @return array<int, string>|null
+     */
+    public function visibleDepartments(): ?array
+    {
+        if ($this->role->seesAllDepartments() || $this->department === null) {
+            return null;
+        }
+
+        return [$this->department];
     }
 
     /**

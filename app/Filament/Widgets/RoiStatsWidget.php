@@ -11,9 +11,18 @@ class RoiStatsWidget extends StatsOverviewWidget
     // Non-lazy: KPIs werden serverseitig gerendert (kein Livewire-Nachladen nötig).
     protected static bool $isLazy = false;
 
+    /**
+     * Nutzer (Self-Service) sehen keine ROI-Kennzahlen – nur ihre Schichten.
+     */
+    public static function canView(): bool
+    {
+        return (bool) auth()->user()?->role->seesMetrics();
+    }
+
     protected function getStats(): array
     {
-        $metrics = app(RoiMetricsService::class);
+        // Abteilungs-Scope der Rolle beachten (Bereichsleiter → eigene Abteilung).
+        $metrics = app(RoiMetricsService::class)->forUser(auth()->user());
 
         $automationRate = $metrics->automationRate();
         $averageConfidence = $metrics->averageConfidence();

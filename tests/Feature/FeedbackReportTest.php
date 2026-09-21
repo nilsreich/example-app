@@ -126,13 +126,13 @@ class FeedbackReportTest extends TestCase
         // Gast → Login-Redirect.
         $this->get(route('feedback.screenshot', $report))->assertRedirect(route('login'));
 
-        // Rolle ohne Panel-Zugriff → 403.
-        $this->actingAs(User::factory()->create(['role' => 'gast']))
+        // Bereichsleiter darf ins Panel, aber nicht in die Feedback-Triage → 403.
+        $this->actingAs(User::factory()->bereichsleiter('Logistik')->create())
             ->get(route('feedback.screenshot', $report))
             ->assertForbidden();
 
-        // Disponent → Bild wird ausgeliefert.
-        $this->actingAs(User::factory()->create(['role' => 'disponent']))
+        // Web-Admin → Bild wird ausgeliefert.
+        $this->actingAs(User::factory()->create())
             ->get(route('feedback.screenshot', $report))
             ->assertOk()
             ->assertHeader('Content-Type', 'image/png');
@@ -140,7 +140,7 @@ class FeedbackReportTest extends TestCase
 
     public function test_widget_markup_follows_global_toggle(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'disponent']));
+        $this->actingAs(User::factory()->create());
 
         // Default: aus.
         $this->get(route('dashboard'))->assertOk()->assertDontSee('data-feedback-widget', escape: false);
@@ -152,7 +152,7 @@ class FeedbackReportTest extends TestCase
 
     public function test_widget_is_injected_into_the_admin_panel_too(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->actingAs(User::factory()->create());
 
         $this->get('/admin')->assertOk()->assertDontSee('data-feedback-widget', escape: false);
 

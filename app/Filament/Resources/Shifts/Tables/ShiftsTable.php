@@ -65,6 +65,8 @@ class ShiftsTable
                 Action::make('dispatch')
                     ->label('KI-Ersatzvorschläge')
                     ->icon('heroicon-o-sparkles')
+                    // Dispatching nur für Rollen mit Dispositionsrecht im eigenen Scope.
+                    ->authorize(fn (Shift $record): bool => auth()->user()?->can('update', $record) ?? false)
                     ->slideOver()
                     ->modalHeading(fn (Shift $record): string => 'Dispatching: '.$record->title)
                     ->modalWidth(Width::ExtraLarge)

@@ -4,10 +4,12 @@ namespace App\Providers;
 
 use App\Contracts\ShiftOptimizerPipelineInterface;
 use App\Enums\PipelineDriver;
+use App\Filament\Auth\RoleBasedLoginResponse;
 use App\Models\Setting;
 use App\Pipelines\LaravelAiSdkPipeline;
 use App\Pipelines\MockDeterministicPipeline;
 use Carbon\CarbonImmutable;
+use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -37,6 +39,9 @@ class AppServiceProvider extends ServiceProvider
                 ? $this->app->make(LaravelAiSdkPipeline::class)
                 : $this->app->make(MockDeterministicPipeline::class);
         });
+
+        // Rollenbasierter Login-Redirect (GF → Überblick, Bereichsleiter → Schichten, Nutzer → Meine Schichten).
+        $this->app->bind(LoginResponseContract::class, RoleBasedLoginResponse::class);
     }
 
     /**

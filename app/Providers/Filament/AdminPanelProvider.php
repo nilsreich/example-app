@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Widgets\FeedbackChartWidget;
 use App\Filament\Widgets\RoiStatsWidget;
+use App\Filament\Widgets\RoleGuideWidget;
 use App\Filament\Widgets\SavingsChartWidget;
 use App\Filament\Widgets\ShiftStatusChartWidget;
 use Filament\Http\Middleware\Authenticate;
@@ -33,6 +34,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login()
             ->colors([
                 'primary' => Color::Amber,
@@ -44,6 +46,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
+                RoleGuideWidget::class,
                 RoiStatsWidget::class,
                 SavingsChartWidget::class,
                 ShiftStatusChartWidget::class,
@@ -65,6 +68,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): string => Blade::render('<x-feedback-widget />'),
+            )
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                fn (): string => Blade::render("@include('filament.auth.login-demo-hint')"),
             )
             ->authMiddleware([
                 Authenticate::class,

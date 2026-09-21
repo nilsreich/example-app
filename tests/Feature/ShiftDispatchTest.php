@@ -11,6 +11,7 @@ use App\Models\Shift;
 use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -18,6 +19,14 @@ use Tests\TestCase;
 class ShiftDispatchTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Dispatching erfordert eine Rolle mit Dispositionsrecht (Rechtematrix).
+        $this->actingAs(User::factory()->create());
+    }
 
     public function test_run_optimization_persists_matches_for_display(): void
     {

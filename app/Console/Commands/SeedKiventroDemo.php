@@ -6,6 +6,7 @@ use App\Enums\FeedbackCategory;
 use App\Enums\FeedbackRating;
 use App\Enums\FeedbackStatus;
 use App\Enums\ShiftStatus;
+use App\Enums\UserRole;
 use App\Models\Employee;
 use App\Models\FeedbackReport;
 use App\Models\Setting;
@@ -50,7 +51,7 @@ class SeedKiventroDemo extends Command
         }
 
         $this->info($message);
-        $this->info('Demo-Login: admin@kiventro.de / disponent@kiventro.de, Passwort: '.self::DEMO_PASSWORD);
+        $this->info('Demo-Logins: admin@kiventro.de (Web-Admin), gf@kiventro.de (GF), leitung.logistik@kiventro.de (Bereichsleiter), mitarbeiter@kiventro.de (Mitarbeiter), Passwort: '.self::DEMO_PASSWORD);
 
         return self::SUCCESS;
     }
@@ -114,16 +115,21 @@ class SeedKiventroDemo extends Command
 
     /**
      * Demo-User per Upsert (eigene Konten überleben einen Demo-Reset).
+     * Ein Login je Rolle, damit jede Sicht direkt vorführbar ist.
      */
     private function seedDemoUsers(): void
     {
         foreach ([
-            ['Kiventro Admin', 'admin@kiventro.de', 'admin'],
-            ['Tom Dispatch', 'disponent@kiventro.de', 'disponent'],
-        ] as [$name, $email, $role]) {
+            ['Kiventro Admin', 'admin@kiventro.de', UserRole::WebAdmin, null],
+            ['Vera Kessler', 'gf@kiventro.de', UserRole::Geschaeftsfuehrer, null],
+            ['Lars Neumann', 'leitung.logistik@kiventro.de', UserRole::Bereichsleiter, 'Logistik'],
+            ['Petra Sommer', 'leitung.produktion@kiventro.de', UserRole::Bereichsleiter, 'Produktion'],
+            ['Murat Aksoy', 'leitung.versand@kiventro.de', UserRole::Bereichsleiter, 'Versand'],
+            ['Ben Kramer', 'mitarbeiter@kiventro.de', UserRole::Nutzer, 'Logistik'],
+        ] as [$name, $email, $role, $department]) {
             $user = User::updateOrCreate(
                 ['email' => $email],
-                ['name' => $name, 'role' => $role, 'password' => self::DEMO_PASSWORD],
+                ['name' => $name, 'role' => $role, 'department' => $department, 'password' => self::DEMO_PASSWORD],
             );
 
             // E-Mail gilt als bestätigt: Demo-User sollen direkt ins /dashboard
@@ -132,6 +138,37 @@ class SeedKiventroDemo extends Command
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
         }
+
+        $this->seedEmployeeSelfService();
+    }
+
+    /**
+     * Verknüpft den Mitarbeiter-Login mit seinem Personal-Datensatz und gibt
+     * ihm eine künftige Schicht, damit "Meine Schichten" sofort etwas zeigt
+     * und die Krankmeldung den Dispositions-Workflow auslösen kann.
+     */
+    private function seedEmployeeSelfService(): void
+    {
+        $user = User::where('email', 'mitarbeiter@kiventro.de')->first();
+        $employee = Employee::where('name', 'Ben Kramer')->first();
+
+        if (! $user || ! $employee) {
+            return;
+        }
+
+        $employee->update(['user_id' => $user->id]);
+
+        $tomorrow = now()->addDay()->startOfDay();
+
+        Shift::create([
+            'title' => 'Spätschicht Logistik (Self-Service)',
+            'starts_at' => $tomorrow->copy()->setTime(14, 0),
+            'ends_at' => $tomorrow->copy()->setTime(22, 0),
+            'department' => 'Logistik',
+            'required_qualifications' => ['Staplerschein'],
+            'status' => ShiftStatus::Assigned,
+            'assigned_employee_id' => $employee->id,
+        ]);
     }
 
     /**
@@ -143,7 +180,7 @@ class SeedKiventroDemo extends Command
         Setting::set(Setting::FEEDBACK_WIDGET_ENABLED, '1');
 
         $admin = User::where('email', 'admin@kiventro.de')->first();
-        $dispatcher = User::where('email', 'disponent@kiventro.de')->first();
+        $dispatcher = User::where('email', 'leitung.logistik@kiventro.de')->first();
 
         FeedbackReport::create([
             'user_id' => $dispatcher?->id ?? $admin?->id,

@@ -24,6 +24,16 @@ class FilamentPagesTest extends TestCase
         $this->get('/admin/shifts')->assertRedirect('/admin/login');
     }
 
+    public function test_login_page_shows_demo_credentials(): void
+    {
+        $this->get('/admin/login')
+            ->assertOk()
+            ->assertSee('Demo-Zugänge')
+            ->assertSee('admin@kiventro.de')
+            ->assertSee('mitarbeiter@kiventro.de')
+            ->assertSee('kiventro-demo');
+    }
+
     public function test_dashboard_loads_with_widgets(): void
     {
         $this->actingAsAdmin();
@@ -31,6 +41,7 @@ class FilamentPagesTest extends TestCase
         // Non-lazy Widgets: Kennzahlen müssen direkt im HTML stehen (auch ohne JS).
         $this->get('/admin')
             ->assertOk()
+            ->assertSee('Web-Administrator')
             ->assertSee('Eingesparte Disponentenkosten')
             ->assertSee('Automatisierungsquote')
             ->assertSee('Ø Match-Konfidenz')
@@ -61,19 +72,19 @@ class FilamentPagesTest extends TestCase
         $this->get('/admin/feedback-settings')->assertOk()->assertSee('In-App-Feedback');
     }
 
-    public function test_unknown_role_is_denied_panel_access(): void
+    public function test_all_roles_can_access_the_panel_dashboard(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'gast']));
+        $roles = [
+            User::factory()->create(),                        // Web-Admin
+            User::factory()->create(['role' => 'geschaeftsfuehrer']),
+            User::factory()->bereichsleiter('Logistik')->create(),
+            User::factory()->nutzer()->create(),
+        ];
 
-        $this->get('/admin/shifts')->assertForbidden();
-    }
+        foreach ($roles as $user) {
+            $this->actingAs($user);
 
-    public function test_admin_and_disponent_roles_can_access_panel(): void
-    {
-        foreach (['admin', 'disponent'] as $role) {
-            $this->actingAs(User::factory()->create(['role' => $role]));
-
-            $this->get('/admin/shifts')->assertOk();
+            $this->get('/admin')->assertOk();
         }
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -26,11 +27,19 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'role', 'department', 'qualifications', 'weekly_overtime_minutes', 'last_shift_ended_at', 'is_active'])]
+#[Fillable(['user_id', 'name', 'role', 'department', 'qualifications', 'weekly_overtime_minutes', 'last_shift_ended_at', 'is_active'])]
 class Employee extends Model
 {
     /** @use HasFactory<EmployeeFactory> */
     use HasFactory;
+
+    /**
+     * Zugehöriger Login (Self-Service "Meine Schichten").
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /**
      * Get the attributes that should be cast.

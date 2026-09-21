@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftAuditEvent;
@@ -24,8 +25,14 @@ class KiventroDemoSeederTest extends TestCase
         $this->assertSame(10, Employee::count());
         $this->assertSame(9, Employee::available()->count());
         $this->assertSame(3, Shift::open()->count());
-        $this->assertSame('admin', User::where('email', 'admin@kiventro.de')->value('role'));
-        $this->assertSame('disponent', User::where('email', 'disponent@kiventro.de')->value('role'));
+        // Ein Demo-Login je Rolle.
+        $this->assertSame(UserRole::WebAdmin, User::where('email', 'admin@kiventro.de')->first()->role);
+        $this->assertSame(UserRole::Geschaeftsfuehrer, User::where('email', 'gf@kiventro.de')->first()->role);
+        $this->assertSame('Logistik', User::where('email', 'leitung.logistik@kiventro.de')->first()->department);
+        $this->assertSame(UserRole::Nutzer, User::where('email', 'mitarbeiter@kiventro.de')->first()->role);
+        // Self-Service: Mitarbeiter-Login ist mit Personal-Datensatz und Schicht verknüpft.
+        $this->assertNotNull(User::where('email', 'mitarbeiter@kiventro.de')->first()->employee);
+        $this->assertSame(1, User::where('email', 'mitarbeiter@kiventro.de')->first()->employee->shifts()->count());
         // Demo-User sind für /dashboard (verified-Middleware) freigeschaltet.
         $this->assertTrue(User::where('email', 'admin@kiventro.de')->first()->hasVerifiedEmail());
     }

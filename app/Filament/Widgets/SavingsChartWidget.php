@@ -9,13 +9,21 @@ class SavingsChartWidget extends ChartWidget
 {
     protected static bool $isLazy = false;
 
+    /**
+     * Nutzer (Self-Service) sehen keine Reporting-Charts.
+     */
+    public static function canView(): bool
+    {
+        return (bool) auth()->user()?->role->seesMetrics();
+    }
+
     protected ?string $heading = 'Kosten- & Zeiteinsparung (14 Tage)';
 
     protected int|string|array $columnSpan = 'full';
 
     protected function getData(): array
     {
-        $savings = app(RoiMetricsService::class)->savingsPerDay();
+        $savings = app(RoiMetricsService::class)->forUser(auth()->user())->savingsPerDay();
 
         return [
             'labels' => $savings['labels'],
