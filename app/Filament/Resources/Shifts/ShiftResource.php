@@ -54,10 +54,11 @@ class ShiftResource extends Resource
 
     /**
      * Abteilungs-Scope: Bereichsleiter sehen ausschließlich ihre Abteilung.
+     * Zusätzlich Eager-Loading für die Top-Match-Spalte (kein N+1 in der Tabelle).
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()->with(['latestOptimization.topProposal.employee', 'assignedEmployee']);
         $departments = auth()->user()?->visibleDepartments();
 
         return $departments === null ? $query : $query->whereIn('department', $departments);

@@ -39,7 +39,7 @@ class SeedKiventroDemo extends Command
     {
         $this->resetDemoTables();
         $this->seedEmployees();
-        $this->seedOpenShifts();
+        $this->seedOpenShifts($runner);
         $this->seedDemoUsers();
         $this->seedFeedbackInbox();
 
@@ -90,7 +90,7 @@ class SeedKiventroDemo extends Command
         }
     }
 
-    private function seedOpenShifts(): void
+    private function seedOpenShifts(ShiftOptimizationRunner $runner): void
     {
         $tomorrow = now()->addDay()->startOfDay();
 
@@ -102,7 +102,7 @@ class SeedKiventroDemo extends Command
         ];
 
         foreach ($shifts as [$title, $startsAt, $endsAt, $department, $required]) {
-            Shift::create([
+            $shift = Shift::create([
                 'title' => $title,
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
@@ -110,6 +110,10 @@ class SeedKiventroDemo extends Command
                 'required_qualifications' => $required,
                 'status' => ShiftStatus::Open,
             ]);
+
+            // Vorberechneter Lauf: Die Schichtenliste zeigt sofort das Top-Match
+            // inklusive 1-Klick-Übernahme (besserer Demo-Einstieg).
+            $runner->run($shift);
         }
     }
 

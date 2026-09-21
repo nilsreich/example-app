@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -62,6 +63,14 @@ class Shift extends Model
     public function optimizations(): HasMany
     {
         return $this->hasMany(ShiftOptimization::class)->latest();
+    }
+
+    /**
+     * Jüngster Pipeline-Lauf (für die Top-Match-Spalte in der Tabelle).
+     */
+    public function latestOptimization(): HasOne
+    {
+        return $this->hasOne(ShiftOptimization::class)->latestOfMany();
     }
 
     /**

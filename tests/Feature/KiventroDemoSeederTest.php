@@ -33,6 +33,11 @@ class KiventroDemoSeederTest extends TestCase
         // Self-Service: Mitarbeiter-Login ist mit Personal-Datensatz und Schicht verknüpft.
         $this->assertNotNull(User::where('email', 'mitarbeiter@kiventro.de')->first()->employee);
         $this->assertSame(1, User::where('email', 'mitarbeiter@kiventro.de')->first()->employee->shifts()->count());
+        // Offene Schichten kommen mit vorberechnetem Top-Match (1-Klick-Demo).
+        foreach (Shift::open()->get() as $shift) {
+            $this->assertNotNull($shift->latestOptimization, "Lauf fehlt für {$shift->title}");
+            $this->assertNotNull($shift->latestOptimization->topProposal, "Top-Match fehlt für {$shift->title}");
+        }
         // Demo-User sind für /dashboard (verified-Middleware) freigeschaltet.
         $this->assertTrue(User::where('email', 'admin@kiventro.de')->first()->hasVerifiedEmail());
     }
