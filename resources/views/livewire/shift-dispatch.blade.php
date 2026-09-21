@@ -12,7 +12,12 @@
     </div>
 
     @if ($notice)
-        <div class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ $notice }}</div>
+        <div class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {{ $notice }}
+            @if ($showRoiLink)
+                <a href="{{ url('/admin') }}" class="ml-1 font-semibold underline">Auswirkung im ROI-Dashboard ansehen →</a>
+            @endif
+        </div>
     @endif
 
     {{-- Aktionen --}}
@@ -41,9 +46,17 @@
         <div class="space-y-4">
             @foreach ($optimization->proposals as $proposal)
                 @php($tier = $proposal->confidenceTier())
-                <div class="rounded-xl border border-gray-200 p-4 shadow-sm" wire:key="proposal-{{ $proposal->id }}">
+                @php($isTop = $loop->first)
+                <div class="rounded-xl border p-4 shadow-sm
+                        {{ $isTop ? 'border-amber-400 ring-2 ring-amber-200' : 'border-gray-200' }}"
+                    wire:key="proposal-{{ $proposal->id }}">
                     <div class="flex items-center justify-between gap-3">
-                        <div class="font-semibold">{{ $proposal->employee->name }}</div>
+                        <div class="font-semibold">
+                            {{ $proposal->employee->name }}
+                            @if ($isTop)
+                                <span class="ml-1 align-middle text-xs font-semibold uppercase tracking-wide text-amber-600">Top-Match</span>
+                            @endif
+                        </div>
                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-bold
                             {{ $tier === 'high' ? 'bg-green-100 text-green-800' : ($tier === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
                             {{ $proposal->score }} %

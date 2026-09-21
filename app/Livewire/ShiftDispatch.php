@@ -48,6 +48,11 @@ class ShiftDispatch extends Component
 
     public ?string $notice = null;
 
+    /**
+     * Nach einer Zuweisung: Direktlink zur ROI-Auswirkung (nur Reporting-Rollen).
+     */
+    public bool $showRoiLink = false;
+
     public function mount(int $shiftId): void
     {
         $this->shiftId = $shiftId;
@@ -83,6 +88,7 @@ class ShiftDispatch extends Component
         $assignments->assign($proposal->optimization->shift, $proposal->employee);
 
         $this->notice = $proposal->employee->name.' wurde zugewiesen (Ledger-Event geschrieben).';
+        $this->showRoiLink = (bool) auth()->user()?->role->seesMetrics();
     }
 
     public function openFeedback(int $proposalId, string $rating): void
@@ -140,6 +146,7 @@ class ShiftDispatch extends Component
         $this->showRollbackModal = false;
         $this->rollbackReason = '';
         $this->cancellationMessage = null;
+        $this->showRoiLink = false;
         $this->notice = 'Zuweisung als Forward-Event zurückgerollt – Schicht ist wieder offen.';
     }
 

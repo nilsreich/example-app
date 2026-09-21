@@ -61,6 +61,9 @@ class ShiftsTable
                         'Versand' => 'Versand',
                     ]),
             ])
+            ->emptyStateHeading('Keine Schichten gefunden')
+            ->emptyStateDescription('Filter anpassen oder das Demo-Szenario laden, um sofort Daten zu sehen.')
+            ->emptyStateIcon('heroicon-o-calendar-days')
             ->recordActions([
                 Action::make('dispatch')
                     ->label('KI-Ersatzvorschläge')
