@@ -2,30 +2,58 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
 use App\Models\Shift;
+use App\Models\ShiftFeedback;
+use App\Models\User;
+use App\Services\ShiftAssignmentService;
+use App\Services\ShiftOptimizationRunner;
+use Carbon\CarbonInterface;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-#[Signature('db:seed-kiventro-demo')]
-#[Description('Lädt das kiventro Demo-Szenario: 10 Mitarbeiter, 1 Krankmeldung, 3 kritische Schichten (setzt Demo-Daten zurück)')]
+#[Signature('db:seed-kiventro-demo {--with-history : Zusätzlich 2 Wochen Vorgeschichte (Zuweisungen + Feedbacks) für volle ROI-Dashboards}')]
+#[Description('Lädt das kiventro Demo-Szenario: 10 Mitarbeiter, 1 Krankmeldung, 3 kritische Schichten, Demo-User (setzt Demo-Daten zurück)')]
 class SeedKiventroDemo extends Command
 {
     /**
+     * Demo-Zugangsdaten (öffentlich dokumentiert, nur für die Demo-Umgebung).
+     */
+    public const DEMO_PASSWORD = 'kiventro-demo';
+
+    /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(ShiftOptimizationRunner $runner, ShiftAssignmentService $assignments): int
     {
         $this->resetDemoTables();
+        $this->seedEmployees();
+        $this->seedOpenShifts();
+        $this->seedDemoUsers();
 
+        $message = 'kiventro Demo-Szenario geladen: 10 Mitarbeiter (1 krank), 3 offene Schichten.';
+
+        if ($this->option('with-history')) {
+            $this->seedHistory($runner, $assignments);
+            $message .= ' Plus 14 Tage Vorgeschichte (4 Zuweisungen, 3 Feedbacks).';
+        }
+
+        $this->info($message);
+        $this->info('Demo-Login: admin@kiventro.de / disponent@kiventro.de, Passwort: '.self::DEMO_PASSWORD);
+
+        return self::SUCCESS;
+    }
+
+    private function seedEmployees(): void
+    {
         $now = now();
-        $tomorrow = $now->copy()->addDay()->startOfDay();
 
-        // 10 Mitarbeiter mit gestaffelten Skills, Ruhezeiten und Überstunden.
         // Zeiten relativ zu "jetzt", damit die Demo an jedem Tag funktioniert.
         $employees = [
             ['Anna Berger', 'Schichtleiterin', 'Logistik', ['Schichtleitung', 'Staplerschein'], 45, $now->copy()->subHours(20)],
@@ -43,7 +71,6 @@ class SeedKiventroDemo extends Command
 
         foreach ($employees as $entry) {
             [$name, $role, $department, $qualifications, $overtime, $lastEnded] = $entry;
-            $active = $entry[6] ?? true;
 
             Employee::create([
                 'name' => $name,
@@ -52,9 +79,14 @@ class SeedKiventroDemo extends Command
                 'qualifications' => $qualifications,
                 'weekly_overtime_minutes' => $overtime,
                 'last_shift_ended_at' => $lastEnded,
-                'is_active' => $active,
+                'is_active' => $entry[6] ?? true,
             ]);
         }
+    }
+
+    private function seedOpenShifts(): void
+    {
+        $tomorrow = now()->addDay()->startOfDay();
 
         // 3 kritisch unbesetzte Schichten (morgen).
         $shifts = [
@@ -73,10 +105,91 @@ class SeedKiventroDemo extends Command
                 'status' => ShiftStatus::Open,
             ]);
         }
+    }
 
-        $this->info('kiventro Demo-Szenario geladen: 10 Mitarbeiter (1 krank), 3 offene Schichten.');
+    /**
+     * Demo-User per Upsert (eigene Konten überleben einen Demo-Reset).
+     */
+    private function seedDemoUsers(): void
+    {
+        foreach ([
+            ['Kiventro Admin', 'admin@kiventro.de', 'admin'],
+            ['Tom Dispatch', 'disponent@kiventro.de', 'disponent'],
+        ] as [$name, $email, $role]) {
+            User::updateOrCreate(
+                ['email' => $email],
+                ['name' => $name, 'role' => $role, 'password' => self::DEMO_PASSWORD],
+            );
+        }
+    }
 
-        return self::SUCCESS;
+    /**
+     * Deterministische Vorgeschichte über echte Code-Pfade (Runner + Services),
+     * damit ROI-Dashboard und Charts sofort Daten zeigen:
+     * 4 Zuweisungen (3× Top-Match, 1× Override), 2× positiv, 1× negativ.
+     */
+    private function seedHistory(ShiftOptimizationRunner $runner, ShiftAssignmentService $assignments): void
+    {
+        $entries = [
+            // [Tage zurück, Titel, Abteilung, Qualifikation, Top-Match übernehmen?, Feedback]
+            [12, 'Frühschicht Logistik (KW)', 'Logistik', ['Staplerschein'], true, FeedbackRating::Positive],
+            [9, 'Spätschicht Produktion (KW)', 'Produktion', ['Ersthelfer'], true, FeedbackRating::Positive],
+            [5, 'Nachtschicht Versand (KW)', 'Versand', ['Staplerschein'], true, FeedbackRating::Negative],
+            [2, 'Frühschicht Logistik (KW)', 'Logistik', ['Staplerschein'], false, null],
+        ];
+
+        foreach ($entries as [$daysAgo, $title, $department, $required, $takeTop, $feedbackRating]) {
+            $day = now()->subDays($daysAgo)->startOfDay();
+
+            $shift = Shift::create([
+                'title' => $title,
+                'starts_at' => $day->copy()->setTime(6, 0),
+                'ends_at' => $day->copy()->setTime(14, 0),
+                'department' => $department,
+                'required_qualifications' => $required,
+                'status' => ShiftStatus::Open,
+            ]);
+
+            $optimization = $runner->run($shift);
+            $proposals = $optimization->proposals;
+            $proposal = $takeTop ? $proposals->first() : ($proposals->skip(1)->first() ?? $proposals->first());
+            $event = $assignments->assign($shift, $proposal->employee);
+
+            $models = [$optimization, $event, ...$proposals->all()];
+            $feedback = null;
+
+            if ($feedbackRating !== null) {
+                $feedback = ShiftFeedback::create([
+                    'proposal_id' => $proposal->id,
+                    'rating' => $feedbackRating,
+                    'reason_category' => $feedbackRating === FeedbackRating::Negative ? 'Regelkonflikt' : null,
+                    'comment' => $feedbackRating === FeedbackRating::Negative ? 'Demo: Ruhezeit grenzwertig.' : 'Demo: Reibungslos übernommen.',
+                ]);
+                $models[] = $feedback;
+            }
+
+            // Vorgeschichte auf das Schichtdatum zurückdatieren (Charts gruppieren nach Tag).
+            foreach ($models as $model) {
+                $this->backdate($model, $day);
+            }
+        }
+    }
+
+    private function backdate(Model $model, CarbonInterface $date): void
+    {
+        // Ledger-Tabellen (z. B. shift_audit_events) haben kein updated_at.
+        $attributes = ['created_at' => $date];
+
+        if (
+            $model->getUpdatedAtColumn() !== null
+            && in_array($model->getUpdatedAtColumn(), Schema::getColumnListing($model->getTable()), true)
+        ) {
+            $attributes['updated_at'] = $date;
+        }
+
+        $model->timestamps = false;
+        $model->forceFill($attributes)->save();
+        $model->timestamps = true;
     }
 
     /**

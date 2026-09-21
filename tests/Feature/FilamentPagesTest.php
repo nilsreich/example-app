@@ -44,4 +44,20 @@ class FilamentPagesTest extends TestCase
 
         $this->get('/admin/pipeline-settings')->assertOk();
     }
+
+    public function test_unknown_role_is_denied_panel_access(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'gast']));
+
+        $this->get('/admin/shifts')->assertForbidden();
+    }
+
+    public function test_admin_and_disponent_roles_can_access_panel(): void
+    {
+        foreach (['admin', 'disponent'] as $role) {
+            $this->actingAs(User::factory()->create(['role' => $role]));
+
+            $this->get('/admin/shifts')->assertOk();
+        }
+    }
 }

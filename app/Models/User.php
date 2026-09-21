@@ -21,6 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string $role
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -30,7 +31,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'role', 'password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, PasskeyUser
 {
@@ -51,12 +52,12 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     }
 
     /**
-     * Demo-Entscheidung (kiventro B2E): Jeder authentifizierte User darf ins
-     * Admin-Panel. Für Produktion hier Rollen-/Team-Prüfung ergänzen.
+     * Demo-Rollenmodell (kiventro B2E): "admin" und "disponent" dürfen ins
+     * Admin-Panel. Für Produktion hier echte Rollen-/Team-Prüfung ergänzen.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        return in_array($this->role, ['admin', 'disponent'], true);
     }
 
     /**
