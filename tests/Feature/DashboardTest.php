@@ -24,4 +24,18 @@ class DashboardTest extends TestCase
         $response = $this->get(route('dashboard'));
         $response->assertOk();
     }
+
+    public function test_dashboard_shows_kiventro_kpis_and_dispatch_links(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $response = $this->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('Eingesparte Disponentenkosten');
+        $response->assertSee('Automatisierungsquote');
+        $response->assertSee('Ø Match-Konfidenz');
+        $response->assertSee('Offene Schichten');
+        $response->assertSee('/admin/shifts', escape: false);
+    }
 }

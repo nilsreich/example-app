@@ -28,7 +28,15 @@ class FilamentPagesTest extends TestCase
     {
         $this->actingAsAdmin();
 
-        $this->get('/admin')->assertOk();
+        // Non-lazy Widgets: Kennzahlen müssen direkt im HTML stehen (auch ohne JS).
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee('Eingesparte Disponentenkosten')
+            ->assertSee('Automatisierungsquote')
+            ->assertSee('Ø Match-Konfidenz')
+            ->assertSee('Kosten- & Zeiteinsparung')
+            ->assertSee('Schichtstatus-Verteilung')
+            ->assertSee('Feedback zu KI-Vorschlägen');
     }
 
     public function test_shift_list_page_loads(): void

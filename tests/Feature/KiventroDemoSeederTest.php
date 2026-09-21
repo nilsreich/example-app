@@ -26,6 +26,8 @@ class KiventroDemoSeederTest extends TestCase
         $this->assertSame(3, Shift::open()->count());
         $this->assertSame('admin', User::where('email', 'admin@kiventro.de')->value('role'));
         $this->assertSame('disponent', User::where('email', 'disponent@kiventro.de')->value('role'));
+        // Demo-User sind für /dashboard (verified-Middleware) freigeschaltet.
+        $this->assertTrue(User::where('email', 'admin@kiventro.de')->first()->hasVerifiedEmail());
     }
 
     public function test_history_option_fills_roi_dashboard(): void

@@ -7,6 +7,8 @@ use Filament\Widgets\ChartWidget;
 
 class SavingsChartWidget extends ChartWidget
 {
+    protected static bool $isLazy = false;
+
     protected ?string $heading = 'Kosten- & Zeiteinsparung (14 Tage)';
 
     protected int|string|array $columnSpan = 'full';

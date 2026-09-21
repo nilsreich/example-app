@@ -7,6 +7,8 @@ use Filament\Widgets\ChartWidget;
 
 class FeedbackChartWidget extends ChartWidget
 {
+    protected static bool $isLazy = false;
+
     protected ?string $heading = 'Feedback zu KI-Vorschlägen';
 
     protected function getData(): array

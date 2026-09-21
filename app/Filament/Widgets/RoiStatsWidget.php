@@ -8,6 +8,9 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class RoiStatsWidget extends StatsOverviewWidget
 {
+    // Non-lazy: KPIs werden serverseitig gerendert (kein Livewire-Nachladen nötig).
+    protected static bool $isLazy = false;
+
     protected function getStats(): array
     {
         $metrics = app(RoiMetricsService::class);

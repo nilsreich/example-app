@@ -116,10 +116,16 @@ class SeedKiventroDemo extends Command
             ['Kiventro Admin', 'admin@kiventro.de', 'admin'],
             ['Tom Dispatch', 'disponent@kiventro.de', 'disponent'],
         ] as [$name, $email, $role]) {
-            User::updateOrCreate(
+            $user = User::updateOrCreate(
                 ['email' => $email],
                 ['name' => $name, 'role' => $role, 'password' => self::DEMO_PASSWORD],
             );
+
+            // E-Mail gilt als bestätigt: Demo-User sollen direkt ins /dashboard
+            // (verified-Middleware) und ins Admin-Panel kommen.
+            if (! $user->hasVerifiedEmail()) {
+                $user->forceFill(['email_verified_at' => now()])->save();
+            }
         }
     }
 

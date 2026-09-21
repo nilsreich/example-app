@@ -7,6 +7,8 @@ use Filament\Widgets\ChartWidget;
 
 class ShiftStatusChartWidget extends ChartWidget
 {
+    protected static bool $isLazy = false;
+
     protected ?string $heading = 'Schichtstatus-Verteilung';
 
     protected function getData(): array
