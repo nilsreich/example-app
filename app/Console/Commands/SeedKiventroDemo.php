@@ -2,9 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\FeedbackCategory;
 use App\Enums\FeedbackRating;
+use App\Enums\FeedbackStatus;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
+use App\Models\FeedbackReport;
+use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\ShiftFeedback;
 use App\Models\User;
@@ -36,8 +40,9 @@ class SeedKiventroDemo extends Command
         $this->seedEmployees();
         $this->seedOpenShifts();
         $this->seedDemoUsers();
+        $this->seedFeedbackInbox();
 
-        $message = 'kiventro Demo-Szenario geladen: 10 Mitarbeiter (1 krank), 3 offene Schichten.';
+        $message = 'kiventro Demo-Szenario geladen: 10 Mitarbeiter (1 krank), 3 offene Schichten, 2 Feedback-Meldungen.';
 
         if ($this->option('with-history')) {
             $this->seedHistory($runner, $assignments);
@@ -130,6 +135,41 @@ class SeedKiventroDemo extends Command
     }
 
     /**
+     * Aktiviert das In-App-Feedback-Widget für die Demo und legt zwei
+     * Beispielmeldungen an (Triage-Eingang ist damit sichtbar).
+     */
+    private function seedFeedbackInbox(): void
+    {
+        Setting::set(Setting::FEEDBACK_WIDGET_ENABLED, '1');
+
+        $admin = User::where('email', 'admin@kiventro.de')->first();
+        $dispatcher = User::where('email', 'disponent@kiventro.de')->first();
+
+        FeedbackReport::create([
+            'user_id' => $dispatcher?->id ?? $admin?->id,
+            'category' => FeedbackCategory::Bug,
+            'message' => 'Beim Rollback fehlte die Storno-Nachricht in der Bestätigung. Bitte prüfen, ob das Feld übernommen wird.',
+            'page_url' => url('/admin/shifts'),
+            'page_title' => 'Schichten',
+            'element_selector' => 'div.fi-ta-ctn > table',
+            'element_text' => 'Zuweisung zurückrollen',
+            'browser_info' => ['userAgent' => 'Demo', 'language' => 'de-DE', 'viewport' => '1440×900'],
+            'status' => FeedbackStatus::New,
+        ]);
+
+        FeedbackReport::create([
+            'user_id' => $admin?->id ?? $dispatcher?->id,
+            'category' => FeedbackCategory::Idea,
+            'message' => 'Vorschlag: Konfidenz-Score im Slide-Over zusätzlich als Trendpfeil im Vergleich zum letzten Lauf zeigen.',
+            'page_url' => url('/admin/shifts'),
+            'page_title' => 'Schichten',
+            'browser_info' => ['userAgent' => 'Demo', 'language' => 'de-DE', 'viewport' => '1440×900'],
+            'status' => FeedbackStatus::InProgress,
+            'resolution_note' => 'Im Backlog für Sprint 2 vorgemerkt.',
+        ]);
+    }
+
+    /**
      * Deterministische Vorgeschichte über echte Code-Pfade (Runner + Services),
      * damit ROI-Dashboard und Charts sofort Daten zeigen:
      * 4 Zuweisungen (3× Top-Match, 1× Override), 2× positiv, 1× negativ.
@@ -205,7 +245,7 @@ class SeedKiventroDemo extends Command
     {
         Schema::disableForeignKeyConstraints();
 
-        foreach (['shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shift_audit_events', 'shifts', 'employees'] as $table) {
+        foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shift_audit_events', 'shifts', 'employees'] as $table) {
             DB::table($table)->delete();
         }
 

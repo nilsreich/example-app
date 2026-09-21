@@ -53,6 +53,14 @@ class FilamentPagesTest extends TestCase
         $this->get('/admin/pipeline-settings')->assertOk();
     }
 
+    public function test_feedback_pages_load(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->get('/admin/feedback-reports')->assertOk();
+        $this->get('/admin/feedback-settings')->assertOk()->assertSee('In-App-Feedback');
+    }
+
     public function test_unknown_role_is_denied_panel_access(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'gast']));

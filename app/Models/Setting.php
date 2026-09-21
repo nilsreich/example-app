@@ -21,6 +21,8 @@ class Setting extends Model
 {
     public const AI_PIPELINE_MODE = 'ai_pipeline_mode';
 
+    public const FEEDBACK_WIDGET_ENABLED = 'feedback_widget_enabled';
+
     public static function get(string $key, mixed $default = null): mixed
     {
         return static::where('key', $key)->value('value') ?? $default;
@@ -39,5 +41,13 @@ class Setting extends Model
     {
         return PipelineDriver::tryFrom((string) static::get(self::AI_PIPELINE_MODE, PipelineDriver::Mock->value))
             ?? PipelineDriver::Mock;
+    }
+
+    /**
+     * In-App-Feedback-Widget global an/aus (Default: aus, Opt-in im Admin).
+     */
+    public static function feedbackWidgetEnabled(): bool
+    {
+        return filter_var(static::get(self::FEEDBACK_WIDGET_ENABLED, false), FILTER_VALIDATE_BOOL);
     }
 }
