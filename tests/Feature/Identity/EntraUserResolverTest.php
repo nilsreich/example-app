@@ -77,6 +77,25 @@ class EntraUserResolverTest extends TestCase
         $this->assertSame('obj-9', $user->entra_object_id);
     }
 
+    public function test_does_not_rebind_existing_account_to_foreign_object_id(): void
+    {
+        $resolver = $this->resolver(['group-a' => ['role' => 'nutzer', 'department' => null]]);
+        $existing = User::factory()->create([
+            'entra_object_id' => 'obj-gültig',
+            'email' => 'max@example.test',
+        ]);
+
+        // Gleiche E-Mail, aber eine andere (fremde) Entra-Object-Id: Der Login
+        // darf das bestehende Konto nicht an die fremde Identität binden.
+        $user = $resolver->resolve($this->entraUser('obj-fremd', 'max@example.test'), ['group-a']);
+
+        $this->assertNull($user);
+        $this->assertDatabaseHas('users', [
+            'id' => $existing->id,
+            'entra_object_id' => 'obj-gültig',
+        ]);
+    }
+
     public function test_denies_user_without_matching_group(): void
     {
         $resolver = $this->resolver(['group-a' => ['role' => 'web-admin', 'department' => 'IT']]);

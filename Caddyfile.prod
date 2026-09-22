@@ -18,10 +18,11 @@
     # Kompression (brotli/zstd/gzip je nach Client).
     encode zstd gzip
 
-    # PHP-FPM der App — ohne Pufferung, damit Livewire-4-Streaming/SSE
-    # (z. B. Fortschrittsantworten) sofort durchgereicht werden.
+    # PHP-FPM der App — Standard-Pufferung ist aktiv. Livewire-4-Streaming/SSE
+    # wird aktuell nirgends genutzt (kein ->stream() im Code): flush_interval -1
+    # würde nur TCP-Segmente ohne Nutzen vermehren. Falls künftig gestreamt wird,
+    # hier `flush_interval -1` wieder aktivieren.
     reverse_proxy app:9000 {
-        flush_interval -1
         # Standard-Forwarded-Header für die App (HTTPS-Erkennung, URL-Bau).
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}

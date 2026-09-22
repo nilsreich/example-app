@@ -138,6 +138,19 @@ class FeedbackReportTriageTest extends TestCase
         Storage::disk('local')->assertExists($path);
     }
 
+    public function test_page_url_column_does_not_render_non_http_links(): void
+    {
+        $admin = User::factory()->create();
+        $report = $this->report(['page_url' => 'javascript:alert(document.cookie)']);
+
+        $this->actingAs($admin);
+
+        Livewire::test(ListFeedbackReports::class)
+            ->assertOk()
+            ->assertSee($report->message)
+            ->assertDontSee('href="javascript:', escape: false);
+    }
+
     public function test_resolve_table_action_routes_through_transition_to(): void
     {
         $admin = User::factory()->create();

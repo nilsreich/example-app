@@ -18,7 +18,6 @@ cd "${ROOT}"
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/b2e-template}"
 KEEP="${KEEP:-7}"
-PROJECT_NAME="b2e-template"
 TS="$(date +%Y%m%d-%H%M%S)"
 
 COMPOSE=(docker compose -f compose.prod.yaml)
@@ -42,8 +41,26 @@ echo "  → ${DB_FILE} ($(du -h "${DB_FILE}" | cut -f1))"
 # 2) Dateisicherung des app-storage-Volumes (Screenshots/Uploads)
 # ---------------------------------------------------------------------------
 echo "== app-storage-Volume (Tar) =="
+# Volume-Name dynamisch aus der Compose-Konfiguration ableiten statt aus dem
+# hartkodierten Project-Namen zu raten: weicht der Stack über -p bzw.
+# COMPOSE_PROJECT_NAME ab, würde der alte Weg still ein leeres Volume
+# erszenieren und ein leeres Backup tarben (GoBD-Wiederherstellungsrisiko).
+STORAGE_VOLUME="$("${COMPOSE[@]}" config --volumes | grep -- 'app-storage' | head -n 1 || true)"
+if [[ -z "${STORAGE_VOLUME}" ]]; then
+    echo "FEHLER: Kein app-storage-Volume in compose.prod.yaml gefunden (compose config --volumes leer)." >&2
+    exit 1
+fi
+if ! docker volume inspect "${STORAGE_VOLUME}" >/dev/null 2>&1; then
+    echo "FEHLER: Volume '${STORAGE_VOLUME}' existiert nicht — läuft der Stack?" >&2
+    exit 1
+fi
+# Daten-Check: leeres Volume NICHT als Backup verkaufen.
+if [[ -z "$(docker run --rm -v "${STORAGE_VOLUME}:/data:ro" alpine:3 sh -c 'ls -A /data' 2>/dev/null)" ]]; then
+    echo "FEHLER: Volume '${STORAGE_VOLUME}' ist leer — Abbruch statt leerem Backup." >&2
+    exit 1
+fi
 docker run --rm \
-    -v "${PROJECT_NAME}_app-storage:/data:ro" \
+    -v "${STORAGE_VOLUME}:/data:ro" \
     -v "${BACKUP_DIR}:/backup" \
     alpine:3 tar czf "/backup/storage-${TS}.tar.gz" -C /data .
 echo "  → ${STORAGE_FILE} ($(du -h "${STORAGE_FILE}" | cut -f1))"

@@ -15,6 +15,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
 
 class FeedbackReportsTable
 {
@@ -39,7 +40,12 @@ class FeedbackReportsTable
                 TextColumn::make('page_url')
                     ->label('Seite')
                     ->limit(40)
-                    ->url(fn (FeedbackReport $record): string => $record->page_url, shouldOpenInNewTab: true)
+                    ->url(
+                        fn (FeedbackReport $record): ?string => Str::startsWith($record->page_url, ['http://', 'https://'])
+                            ? $record->page_url
+                            : null,
+                        shouldOpenInNewTab: true,
+                    )
                     ->icon('heroicon-o-arrow-top-right-on-square'),
                 IconColumn::make('screenshot_path')
                     ->label('Screenshot')

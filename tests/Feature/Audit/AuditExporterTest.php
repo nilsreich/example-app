@@ -6,6 +6,7 @@ use App\Audit\AuditLedger;
 use App\Audit\Enums\AuditEventType;
 use App\Audit\Export\AuditExporter;
 use App\Audit\Models\AuditEvent;
+use App\Audit\Support\HashChain;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -119,6 +120,35 @@ final class AuditExporterTest extends TestCase
         $this->assertTrue($decoded['events'][0]['chain_valid']);
         $this->assertTrue($decoded['events'][1]['chain_valid']);
         $this->assertFalse($decoded['events'][2]['chain_valid']);
+    }
+
+    public function test_json_flags_followup_block_when_middle_block_hash_was_replaced(): void
+    {
+        $user = $this->actor();
+        $first = $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
+        $middle = $this->record(AuditEventType::Updated, ['name' => 'Mia'], ['name' => 'Milo'], $user);
+        $this->record(AuditEventType::StatusChanged, ['status' => 'x'], ['status' => 'y'], $user);
+
+        // Angriff auf den Mittel-Block: Inhalt UND Hash werden konsistent neu
+        // berechnet (Recompute allein erkennt das nicht mehr).
+        $middle->new_state = ['name' => 'Betrüger'];
+        $replacedHash = HashChain::hash($middle->prev_hash, $middle->blockPayload());
+
+        DB::table('audit_events')
+            ->where('id', $middle->id)
+            ->update([
+                'new_state' => json_encode(['name' => 'Betrüger']),
+                'hash' => $replacedHash,
+            ]);
+
+        $decoded = json_decode(app(AuditExporter::class)->json(), true, flags: JSON_THROW_ON_ERROR);
+
+        // Neuestes zuerst: events[0] = StatusChanged (Linkage zum Mittel-Block
+        // gebrochen → false), events[1] = Updated (selbst konsistent → true),
+        // events[2] = Created (unverändert → true).
+        $this->assertFalse($decoded['events'][0]['chain_valid']);
+        $this->assertTrue($decoded['events'][1]['chain_valid']);
+        $this->assertTrue($decoded['events'][2]['chain_valid']);
     }
 
     public function test_filters_by_event_type(): void

@@ -76,7 +76,7 @@ final class AuditLogPage extends Page implements HasTable
                 TextColumn::make('version')->label('Version')->sortable()->toggleable(),
                 TextColumn::make('new_state')
                     ->label('Neuer Zustand')
-                    ->formatStateUsing(fn (array $state): string => (string) json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+                    ->formatStateUsing(static fn (mixed $state): string => (string) json_encode($state ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
                     ->limit(60)
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('hash')

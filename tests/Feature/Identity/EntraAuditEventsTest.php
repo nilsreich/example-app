@@ -82,6 +82,58 @@ class EntraAuditEventsTest extends TestCase
         ]);
     }
 
+    public function test_sso_login_records_role_and_department_changes_as_audit_events(): void
+    {
+        // Bereits per Entra gebundenes Konto – Rolle und Abteilung weichen ab.
+        $user = User::factory()->create([
+            'entra_object_id' => 'entra-object-id-123',
+            'email' => 'max@example.test',
+            'role' => UserRole::Geschaeftsfuehrer,
+            'department' => 'Vertrieb',
+        ]);
+        config()->set('entra.group_mapping', [
+            'group-a' => ['role' => UserRole::Nutzer->value, 'department' => 'Logistik'],
+        ]);
+        Socialite::fake('microsoft', $this->fakeEntraUser());
+
+        $this->get('/auth/entra/callback')
+            ->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertDatabaseHas('audit_events', [
+            'event_type' => 'role_changed',
+            'actor_user_id' => $user->id,
+            'source' => 'entra',
+        ]);
+        $this->assertDatabaseHas('audit_events', [
+            'event_type' => 'department_changed',
+            'actor_user_id' => $user->id,
+            'source' => 'entra',
+        ]);
+        $this->assertSame(UserRole::Nutzer, $user->fresh()->role);
+        $this->assertSame('Logistik', $user->fresh()->department);
+    }
+
+    public function test_sso_login_with_email_of_account_bound_elsewhere_is_denied(): void
+    {
+        // E-Mail gehört zu einem Konto, das bereits an eine andere Entra-Identität gebunden ist.
+        $user = User::factory()->create([
+            'entra_object_id' => 'andere-object-id',
+            'email' => 'max@example.test',
+            'role' => UserRole::Nutzer,
+        ]);
+        Socialite::fake('microsoft', $this->fakeEntraUser());
+
+        $this->get('/auth/entra/callback')
+            ->assertRedirect(route('login', absolute: false));
+
+        $this->assertDatabaseHas('audit_events', [
+            'event_type' => 'login_failed',
+            'source' => 'entra',
+        ]);
+        // Bindung bleibt unverändert.
+        $this->assertSame('andere-object-id', $user->fresh()->entra_object_id);
+    }
+
     public function test_logout_records_logout_event(): void
     {
         $user = User::factory()->create();

@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Shifts\Tables;
 use App\Enums\ShiftStatus;
 use App\Models\Shift;
 use App\Models\ShiftProposal;
-use App\Services\ShiftAssignmentService;
 use App\Services\ShiftOptimizationRunner;
+use App\Services\ShiftProposalAcceptService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -100,7 +100,7 @@ class ShiftsTable
                             return;
                         }
 
-                        app(ShiftAssignmentService::class)->assign($record, $proposal->employee);
+                        app(ShiftProposalAcceptService::class)->accept($record, $proposal);
 
                         Notification::make()
                             ->title($proposal->employee->name.' wurde zugewiesen')

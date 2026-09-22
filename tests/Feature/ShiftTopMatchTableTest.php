@@ -85,7 +85,34 @@ class ShiftTopMatchTableTest extends TestCase
 
         $this->assertSame(ShiftStatus::Assigned, $shift->fresh()->status);
         $this->assertSame($employee->id, $shift->fresh()->assigned_employee_id);
-        $this->assertSame(AuditEventType::InitialAssignment, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->latest('version')->first()->event_type);
+
+        $assignment = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::InitialAssignment)
+            ->first();
+
+        $this->assertNotNull($assignment);
+    }
+
+    public function test_accept_action_records_ai_decision_audit(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create(['name' => 'Dora Lehmann']);
+        $this->runPipeline($shift);
+
+        Livewire::test(ListShifts::class)
+            ->callTableAction('accept', $shift)
+            ->assertHasNoTableActionErrors();
+
+        $decision = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::AiDecision)
+            ->first();
+
+        $this->assertNotNull($decision);
+        $this->assertSame('accepted', $decision->new_state['decision']);
     }
 
     public function test_accept_action_is_hidden_for_geschaeftsfuehrung(): void

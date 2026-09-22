@@ -187,6 +187,34 @@ class FeedbackReportTest extends TestCase
         $this->get('/admin/feedback-reports')->assertForbidden();
     }
 
+    public function test_page_url_must_be_a_valid_http_url(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        // javascript:-URLs (stored-XSS-/Phishing-Vektor) werden abgelehnt.
+        $this->postJson(route('feedback.store'), $this->validPayload(['page_url' => 'javascript:alert(1)']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('page_url');
+
+        // Andere Schemen ebenfalls.
+        $this->postJson(route('feedback.store'), $this->validPayload(['page_url' => 'ftp://example.test/x']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('page_url');
+
+        $this->assertSame(0, FeedbackReport::count());
+    }
+
+    public function test_store_is_rejected_when_module_is_disabled(): void
+    {
+        config(['feedback.enabled' => false]);
+
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('feedback.store'), $this->validPayload())
+            ->assertNotFound();
+
+        $this->assertSame(0, FeedbackReport::count());
+    }
+
     public function test_category_list_is_configurable(): void
     {
         config(['feedback.categories' => ['bug']]);

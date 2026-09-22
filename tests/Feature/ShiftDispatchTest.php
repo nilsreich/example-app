@@ -121,7 +121,15 @@ class ShiftDispatchTest extends TestCase
             ->assertSee('zurückgerollt');
 
         $this->assertSame(ShiftStatus::Open, $shift->fresh()->status);
-        $this->assertSame(AuditEventType::Rollback, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->latest('version')->first()->event_type);
+
+        // Gezielte Suche: das AiDecision-Event wird nach dem Rollback-Ereignis
+        // auditiert, `latest('version')` wäre jetzt das ai_decision-Event.
+        $rollback = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::Rollback->value)
+            ->first();
+
+        $this->assertNotNull($rollback);
     }
 
     public function test_assign_proposal_records_ai_decision_accepted(): void

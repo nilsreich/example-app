@@ -19,11 +19,21 @@ final class FeedbackReportController
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless(config('feedback.enabled', true), 404);
+
         $validated = $request->validate([
             // Kategorien sind über config/feedback.php konfigurierbar.
             'category' => ['required', Rule::in(config('feedback.categories', ['bug', 'idea', 'question', 'other']))],
             'message' => ['required', 'string', 'min:3', 'max:2000'],
-            'page_url' => ['required', 'string', 'max:2048'],
+            'page_url' => [
+                'required',
+                'string',
+                'max:2048',
+                'url',
+                fn (string $attribute, mixed $value, \Closure $fail): mixed => preg_match('~^https?://~i', (string) $value)
+                    ? null
+                    : $fail('Die Seite muss eine gültige http(s)-URL sein.'),
+            ],
             'page_title' => ['nullable', 'string', 'max:500'],
             'element_selector' => ['nullable', 'string', 'max:500'],
             'element_text' => ['nullable', 'string', 'max:500'],
@@ -76,7 +86,11 @@ final class FeedbackReportController
             throw ValidationException::withMessages(['screenshot' => 'Keine gültige Bilddatei.']);
         }
 
-        $extension = $info[2] === IMAGETYPE_PNG ? 'png' : 'jpg';
+        $extension = match ($info[2]) {
+            IMAGETYPE_PNG => 'png',
+            IMAGETYPE_JPEG => 'jpg',
+            default => throw ValidationException::withMessages(['screenshot' => 'Nur JPEG/PNG werden unterstützt.']),
+        };
         $path = 'feedback/'.Str::ulid().'.'.$extension;
 
         if (! Storage::disk('local')->put($path, $binary)) {

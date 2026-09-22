@@ -213,6 +213,9 @@ AI_AGENT_DRIVER=mock
 # ---------- Deployment / Caddy ----------
 APP_DOMAIN=app.b2e-template.example
 ACME_EMAIL=change-me
+# CIDR(s) des Reverse-Proxy(s), deren X-Forwarded-* vertraut wird (kommagetrennt).
+# Docker-Compose-Standardnetz: 10.0.0.0/8; bei Bare-Metal-Caddy die Server-IP.
+TRUSTED_PROXIES=10.0.0.0/8
 
 # ---------- Sonstiges ----------
 BCRYPT_ROUNDS=12
@@ -356,7 +359,7 @@ Exchange) in der `.env` eintragen.
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `502` hinter Caddy                                      | App-Container nicht healthy: `docker compose ps`, Logs unter `logs app`; start_period 20s abwarten.                                                                           |
 | Healthcheck `app` rot                                   | `fsockopen(127.0.0.1, 9000)` erreicht fpm nicht → `clear_env=no` prüfen (`zz-container-env.conf`).                                                                            |
-| `X-Forwarded-*` wird ignoriert / http- statt https-URLs | `bootstrap/app.php`-`trustProxies(at: '*')` fehlt (ab T15 enthalten) bzw. Caddy-`header_up`-Block.                                                                            |
+| `X-Forwarded-*` wird ignoriert / http- statt https-URLs | `TRUSTED_PROXIES`-Env (bootstrap/app.php) deckt die Caddy-Quell-IP nicht ab bzw. Caddy-`header_up`-Block fehlt.                                                               |
 | alte Views/Konfig trotz neuem Code                      | opcache `validate_timestamps=0` → `./scripts/deploy.sh` (führt `optimize` aus), kein manuelles Cache-Clearing nötig.                                                          |
 | `SQLSTATE[HY000] [2002]`                                | DB_HOST muss `mysql` (Compose-Dienstname) sein, nicht localhost.                                                                                                              |
 | Let's-Encrypt-Rate-Limit                                | Erst nach korrektem DNS starten; Test-ACME (`ca=https://acme-staging-v02.api.letsencrypt.org/directory`) in `Caddyfile.prod` einblendbar.                                     |

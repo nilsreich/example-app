@@ -43,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
         ));
         $this->app->bind(EntraUserResolver::class, fn (): EntraUserResolver => new EntraUserResolver(
             $this->app->make(EntraGroupRoleMapper::class),
+            $this->app->make(AuditLedger::class),
         ));
     }
 

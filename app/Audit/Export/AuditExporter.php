@@ -4,6 +4,7 @@ namespace App\Audit\Export;
 
 use App\Audit\Enums\AuditEventType;
 use App\Audit\Models\AuditEvent;
+use App\Audit\Support\AuditChainVerifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use RuntimeException;
@@ -62,12 +63,16 @@ final class AuditExporter
      */
     public function json(array $filters = []): string
     {
+        $events = $this->events($filters);
+
+        $chainStates = AuditChainVerifier::verifyAll($events);
+
         $payload = [
             'generated_at' => now()->toIso8601String(),
-            'events' => $this->events($filters)
+            'events' => $events
                 ->map(fn (AuditEvent $event): array => [
                     ...$this->row($event),
-                    'chain_valid' => $event->isChainValid(),
+                    'chain_valid' => $chainStates[$event->id] ?? false,
                 ])
                 ->all(),
         ];
