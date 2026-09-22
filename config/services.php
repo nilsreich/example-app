@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    // Entra-ID-SSO (B2E-Template): gleiche ENV-Quelle wie config/entra.php.
+    // Der Microsoft-Provider liest 'tenant' als zusätzlichen Config-Key.
+    'microsoft' => [
+        'client_id' => env('ENTRA_CLIENT_ID'),
+        'client_secret' => env('ENTRA_CLIENT_SECRET'),
+        'redirect' => env('ENTRA_REDIRECT_URI', '/auth/entra/callback'),
+        'tenant' => env('ENTRA_TENANT_ID', 'common'),
+    ],
+
 ];

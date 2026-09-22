@@ -21,6 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
  * @property int $id
+ * @property string|null $entra_object_id
  * @property string $name
  * @property string $email
  * @property UserRole $role
