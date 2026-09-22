@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Livewire\ShiftDispatch;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
 use App\Models\User;
@@ -57,7 +57,7 @@ class ShiftDispatchTest extends TestCase
 
         $this->assertSame(ShiftStatus::Assigned, $shift->fresh()->status);
         $this->assertSame('Hallo, bitte einspringen!', $proposalId ? ShiftProposal::find($proposalId)->draft_message : null);
-        $this->assertSame(AuditEventType::InitialAssignment, ShiftAuditEvent::first()->event_type);
+        $this->assertSame(AuditEventType::InitialAssignment, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->first()->event_type);
     }
 
     public function test_positive_feedback_is_recorded_directly(): void
@@ -121,6 +121,6 @@ class ShiftDispatchTest extends TestCase
             ->assertSee('zurückgerollt');
 
         $this->assertSame(ShiftStatus::Open, $shift->fresh()->status);
-        $this->assertSame(AuditEventType::Rollback, ShiftAuditEvent::latest('version')->first()->event_type);
+        $this->assertSame(AuditEventType::Rollback, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->latest('version')->first()->event_type);
     }
 }

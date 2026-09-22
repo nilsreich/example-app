@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
@@ -264,7 +265,16 @@ class SeedKiventroDemo extends Command
 
     private function backdate(Model $model, CarbonInterface $date): void
     {
-        // Ledger-Tabellen (z. B. shift_audit_events) haben kein updated_at.
+        // Audit-Events sind append-only (Modell-save() ist verboten); created_at
+        // ist reine Historie-Metadaten und gehört nicht zum Hash-Block. Für das
+        // Demo-Backdating daher die einzige bewusste Ausnahme per Query.
+        if ($model instanceof AuditEvent) {
+            AuditEvent::query()->whereKey($model->getKey())->update(['created_at' => $date]);
+
+            return;
+        }
+
+        // Ledger-Tabellen (audit_events) haben kein updated_at – hier nur reguläre Demo-Modelle.
         $attributes = ['created_at' => $date];
 
         if (
@@ -286,7 +296,7 @@ class SeedKiventroDemo extends Command
     {
         Schema::disableForeignKeyConstraints();
 
-        foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shift_audit_events', 'shifts', 'employees'] as $table) {
+        foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shifts', 'employees'] as $table) {
             DB::table($table)->delete();
         }
 

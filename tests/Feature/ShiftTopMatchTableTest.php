@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
 use App\Filament\Resources\Shifts\Pages\ListShifts;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftOptimization;
 use App\Models\User;
 use App\Pipelines\MockDeterministicPipeline;
@@ -88,7 +88,7 @@ class ShiftTopMatchTableTest extends TestCase
 
         $this->assertSame(ShiftStatus::Assigned, $shift->fresh()->status);
         $this->assertSame($employee->id, $shift->fresh()->assigned_employee_id);
-        $this->assertSame(AuditEventType::InitialAssignment, ShiftAuditEvent::latest('version')->first()->event_type);
+        $this->assertSame(AuditEventType::InitialAssignment, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->latest('version')->first()->event_type);
     }
 
     public function test_accept_action_is_hidden_for_geschaeftsfuehrung(): void

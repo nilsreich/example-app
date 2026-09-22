@@ -14,6 +14,10 @@ enum AuditEventType: string
     case Provisioned = 'provisioned';
     case RoleChanged = 'role_changed';
     case DepartmentChanged = 'department_changed';
+    // Fachliche Zuweisungs-Events der Referenz-Domäne (Demo-Shifts).
+    case InitialAssignment = 'initial_assignment';
+    case ManualOverride = 'manual_override';
+    case AvailabilityReported = 'availability_reported';
     case AiDecision = 'ai_decision';
     case Rollback = 'rollback';
     case Exported = 'exported';
@@ -32,6 +36,9 @@ enum AuditEventType: string
             self::Provisioned => 'Bereitgestellt',
             self::RoleChanged => 'Rolle geändert',
             self::DepartmentChanged => 'Abteilung geändert',
+            self::InitialAssignment => 'Erstzuweisung',
+            self::ManualOverride => 'Manuelle Umbesetzung',
+            self::AvailabilityReported => 'Verfügbarkeitsmeldung',
             self::AiDecision => 'KI-Entscheidung',
             self::Rollback => 'Rücknahme',
             self::Exported => 'Export',

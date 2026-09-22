@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use Database\Factories\ShiftFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -75,10 +77,11 @@ class Shift extends Model
 
     /**
      * Vollständiger Forward-Ledger aller Zustandsänderungen, chronologisch.
+     * Schreibzugriffe laufen ausschließlich über das AuditLedger-Modul.
      */
-    public function auditEvents(): HasMany
+    public function auditEvents(): MorphMany
     {
-        return $this->hasMany(ShiftAuditEvent::class)->orderBy('version');
+        return $this->morphMany(AuditEvent::class, 'auditable')->orderBy('version');
     }
 
     /**

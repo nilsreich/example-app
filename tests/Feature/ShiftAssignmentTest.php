@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Services\ShiftAssignmentService;
 use App\Services\ShiftRollbackService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,25 +61,20 @@ class ShiftAssignmentTest extends TestCase
 
     public function test_rollback_reopens_shift_as_new_forward_event(): void
     {
-        $shift = Shift::factory()->assigned()->create();
-        $assignment = ShiftAuditEvent::create([
-            'shift_id' => $shift->id,
-            'version' => 1,
-            'event_type' => AuditEventType::InitialAssignment,
-            'previous_state' => ['status' => 'open'],
-            'new_state' => $shift->snapshot(),
-        ]);
+        $shift = Shift::factory()->create();
+        $assignment = app(ShiftAssignmentService::class)->assign($shift, Employee::factory()->create());
 
         $event = app(ShiftRollbackService::class)->rollback($shift, 'Mitarbeiter erkrankt', 'Einsatz storniert.');
 
         $this->assertSame(AuditEventType::Rollback, $event->event_type);
         $this->assertSame(2, $event->version);
-        $this->assertSame($assignment->id, $event->reverted_event_id);
+        // Der Rollback verweist im Zustand auf das zurückgesetzte Assign-Event (Ledger hat keine reverted-Spalte).
+        $this->assertSame($assignment->id, $event->new_state['reverted_event_id']);
         $this->assertSame(ShiftStatus::Open, $shift->fresh()->status);
         $this->assertNull($shift->fresh()->assigned_employee_id);
         $this->assertSame('Mitarbeiter erkrankt', $event->new_state['rollback_reason']);
         // Historie bleibt erhalten: kein DELETE, nur Append.
-        $this->assertSame(2, ShiftAuditEvent::where('shift_id', $shift->id)->count());
+        $this->assertSame(2, AuditEvent::where('auditable_type', Shift::class)->count());
     }
 
     public function test_rollback_requires_reason_and_assigned_shift(): void

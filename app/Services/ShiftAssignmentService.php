@@ -2,32 +2,33 @@
 
 namespace App\Services;
 
-use App\Enums\AuditEventType;
+use App\Audit\AuditLedger;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
- * Weist einen Mitarbeiter zu und protokolliert die Änderung revisionssicher.
- * Erstzuweisung (offen → besetzt) vs. manuelle Umbesetzung wird automatisch
- * am Vorzustand erkannt – kein impliziter Modus nötig.
+ * Weist einen Mitarbeiter zu und protokolliert die Änderung revisionssicher
+ * im generischen Audit-Ledger. Erstzuweisung (offen → besetzt) vs. manuelle
+ * Umbesetzung wird automatisch am Vorzustand erkannt – kein impliziter Modus.
  */
 class ShiftAssignmentService
 {
     public function __construct(
-        private readonly ShiftAuditLedger $ledger,
+        private readonly AuditLedger $ledger,
     ) {}
 
-    public function assign(Shift $shift, Employee $employee, ?string $note = null): ShiftAuditEvent
+    public function assign(Shift $shift, Employee $employee, ?string $note = null): AuditEvent
     {
         if (! $employee->is_active) {
             throw new InvalidArgumentException('Inaktive Mitarbeiter können keiner Schicht zugewiesen werden.');
         }
 
-        return DB::transaction(function () use ($shift, $employee, $note): ShiftAuditEvent {
+        return DB::transaction(function () use ($shift, $employee, $note): AuditEvent {
             $shift = Shift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
 
             if ($shift->status === ShiftStatus::Cancelled) {
@@ -49,7 +50,12 @@ class ShiftAssignmentService
                 $newState['note'] = $note;
             }
 
-            return $this->ledger->record($shift, $eventType, $previousState, $newState);
+            return $this->ledger->record(
+                eventType: $eventType,
+                previousState: $previousState,
+                newState: $newState,
+                auditable: $shift,
+            );
         });
     }
 }

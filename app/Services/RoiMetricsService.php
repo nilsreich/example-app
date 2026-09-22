@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
 use App\Models\User;
@@ -169,14 +169,17 @@ class RoiMetricsService
     }
 
     /**
-     * Ledger-Events im aktuellen Abteilungs-Scope.
+     * Ledger-Events im aktuellen Abteilungs-Scope: initiale Zuweisungen
+     * der Referenz-Domäne, gehalten im generischen Audit-Ledger.
      */
     private function auditEvents(): Builder
     {
-        $query = ShiftAuditEvent::query()->where('event_type', AuditEventType::InitialAssignment);
+        $query = AuditEvent::query()
+            ->where('auditable_type', Shift::class)
+            ->where('event_type', AuditEventType::InitialAssignment);
 
         if ($this->departments !== null) {
-            $query->whereHas('shift', fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
+            $query->whereHasMorph('auditable', [Shift::class], fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
         }
 
         return $query;
