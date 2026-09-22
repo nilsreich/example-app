@@ -90,4 +90,17 @@ class EmployeeAvailabilityTest extends TestCase
             ->assertSee('Meine Schicht')
             ->assertDontSee('Fremde Schicht');
     }
+
+    public function test_my_shifts_table_is_accessible(): void
+    {
+        $employee = $this->employeeWithUser();
+        Shift::factory()->assigned()->create(['assigned_employee_id' => $employee->id, 'title' => 'Meine Schicht']);
+
+        $this->actingAs($employee->user);
+
+        Livewire::test(MyShiftsBoard::class)
+            ->assertSee('overflow-x-auto', escape: false)
+            ->assertSee('scope="col"', escape: false)
+            ->assertSee('<caption class="sr-only">Meine Schichten</caption>', escape: false);
+    }
 }

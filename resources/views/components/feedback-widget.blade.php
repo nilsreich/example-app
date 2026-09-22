@@ -93,6 +93,7 @@
             .fw-submit { border: 0; border-radius: .5rem; background: #18181b; color: #fff; padding: .5rem .875rem;
                 font-size: .875rem; font-weight: 600; cursor: pointer; }
             .fw-submit:disabled { opacity: .5; cursor: not-allowed; }
+            .fw-submit:focus-visible { outline: 2px solid #f59e0b; outline-offset: 1px; }
             .fw-root.fw-picking ~ * { cursor: crosshair; }
         </style>
     @endonce

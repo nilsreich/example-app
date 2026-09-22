@@ -37,6 +37,36 @@ class ShellNeutralityTest extends TestCase
             ->assertDontSee('kiventro');
     }
 
+    public function test_welcome_has_no_vendor_links(): void
+    {
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertDontSee('laravel.com')
+            ->assertDontSee('laracasts.com')
+            ->assertDontSee('cloud.laravel.com')
+            ->assertDontSee("Let's get started");
+    }
+
+    public function test_app_shell_has_no_starter_kit_links(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('livewire-starter-kit')
+            ->assertDontSee('starter-kits');
+    }
+
+    public function test_layout_templates_are_vendor_free(): void
+    {
+        foreach (['header', 'sidebar'] as $layout) {
+            $template = file_get_contents(resource_path("views/layouts/app/{$layout}.blade.php"));
+
+            $this->assertStringNotContainsString('github.com/laravel', $template);
+            $this->assertStringNotContainsString('laravel.com/docs/starter-kits', $template);
+        }
+    }
+
     public function test_env_example_ships_neutral_app_name(): void
     {
         $env = file_get_contents(base_path('.env.example'));

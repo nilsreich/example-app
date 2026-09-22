@@ -167,4 +167,35 @@ class ShiftDispatchTest extends TestCase
         $this->assertNotNull($event);
         $this->assertSame('rejected', $event->new_state['decision']);
     }
+
+    public function test_feedback_modal_and_emoji_buttons_are_accessible(): void
+    {
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create();
+
+        $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
+        $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
+
+        $component
+            ->assertSee('role="status"', escape: false)
+            ->assertSee('aria-label="Als hilfreich bewerten"', escape: false)
+            ->assertSee('aria-label="Als nicht hilfreich bewerten"', escape: false)
+            ->call('openFeedback', $proposalId, FeedbackRating::Negative->value)
+            ->assertSee('role="dialog"', escape: false)
+            ->assertSee('aria-modal="true"', escape: false)
+            ->assertSee('aria-labelledby="feedback-modal-title"', escape: false)
+            ->assertSee('id="feedback-modal-title"', escape: false);
+    }
+
+    public function test_rollback_modal_is_accessible(): void
+    {
+        $shift = Shift::factory()->assigned()->create();
+
+        Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])
+            ->set('showRollbackModal', true)
+            ->assertSee('role="dialog"', escape: false)
+            ->assertSee('aria-modal="true"', escape: false)
+            ->assertSee('aria-labelledby="rollback-modal-title"', escape: false)
+            ->assertSee('id="rollback-modal-title"', escape: false);
+    }
 }

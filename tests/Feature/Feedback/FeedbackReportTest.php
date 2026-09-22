@@ -150,6 +150,17 @@ class FeedbackReportTest extends TestCase
         $this->get(route('dashboard'))->assertOk()->assertSee('data-feedback-widget', escape: false);
     }
 
+    public function test_widget_styles_expose_focus_visible_state(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        Setting::set(Setting::FEEDBACK_WIDGET_ENABLED, '1');
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('.fw-submit:focus-visible', escape: false);
+    }
+
     public function test_widget_is_injected_into_the_admin_panel_too(): void
     {
         $this->actingAs(User::factory()->create());
