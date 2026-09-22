@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
 use App\Models\Shift;
+use App\Models\User;
 use App\Services\EmployeeAvailabilityService;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
@@ -65,6 +66,8 @@ class MyShiftsBoard extends Component
 
     private function employee(): ?Employee
     {
-        return auth()->user()?->employee;
+        $user = auth()->user();
+
+        return $user instanceof User ? $user->employee : null;
     }
 }

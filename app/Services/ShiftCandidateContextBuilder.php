@@ -17,20 +17,22 @@ class ShiftCandidateContextBuilder
      */
     public function for(Shift $shift): array
     {
-        $candidates = Employee::available()
-            ->orderBy('name')
-            ->get()
-            ->map(fn (Employee $employee): array => [
-                'employee_id' => $employee->id,
-                'name' => $employee->name,
-                'role' => $employee->role,
-                'department' => $employee->department,
-                'qualifications' => $employee->qualifications ?? [],
-                'weekly_overtime_minutes' => $employee->weekly_overtime_minutes,
-                'rest_hours' => $employee->restHours($shift->starts_at),
-                'last_shift_ended_at' => $employee->last_shift_ended_at?->toIso8601String(),
-            ])
-            ->all();
+        $candidates = array_values(
+            Employee::available()
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Employee $employee): array => [
+                    'employee_id' => $employee->id,
+                    'name' => $employee->name,
+                    'role' => $employee->role,
+                    'department' => $employee->department,
+                    'qualifications' => $employee->qualifications ?? [],
+                    'weekly_overtime_minutes' => $employee->weekly_overtime_minutes,
+                    'rest_hours' => $employee->restHours($shift->starts_at),
+                    'last_shift_ended_at' => $employee->last_shift_ended_at?->toIso8601String(),
+                ])
+                ->all()
+        );
 
         return [
             'shift' => $shift->snapshot(),

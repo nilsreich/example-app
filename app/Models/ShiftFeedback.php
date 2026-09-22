@@ -28,6 +28,9 @@ class ShiftFeedback extends Model
      */
     protected $table = 'shift_feedbacks';
 
+    /**
+     * @return BelongsTo<ShiftProposal, $this>
+     */
     public function proposal(): BelongsTo
     {
         return $this->belongsTo(ShiftProposal::class, 'proposal_id');

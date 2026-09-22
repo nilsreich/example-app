@@ -53,6 +53,8 @@ class Shift extends Model
 
     /**
      * Aktuell zugewiesener Mitarbeiter (null = unbesetzt).
+     *
+     * @return BelongsTo<Employee, $this>
      */
     public function assignedEmployee(): BelongsTo
     {
@@ -61,6 +63,8 @@ class Shift extends Model
 
     /**
      * Alle Optimierungsläufe (Mock + Live) zu dieser Schicht, neueste zuerst.
+     *
+     * @return HasMany<ShiftOptimization, $this>
      */
     public function optimizations(): HasMany
     {
@@ -69,6 +73,8 @@ class Shift extends Model
 
     /**
      * Jüngster Pipeline-Lauf (für die Top-Match-Spalte in der Tabelle).
+     *
+     * @return HasOne<ShiftOptimization, $this>
      */
     public function latestOptimization(): HasOne
     {
@@ -78,6 +84,8 @@ class Shift extends Model
     /**
      * Vollständiger Forward-Ledger aller Zustandsänderungen, chronologisch.
      * Schreibzugriffe laufen ausschließlich über das AuditLedger-Modul.
+     *
+     * @return MorphMany<AuditEvent, $this>
      */
     public function auditEvents(): MorphMany
     {
@@ -86,6 +94,9 @@ class Shift extends Model
 
     /**
      * Offene, zu disponierende Schichten.
+     *
+     * @param  Builder<Shift>  $query
+     * @return Builder<Shift>
      */
     #[Scope]
     protected function open(Builder $query): Builder

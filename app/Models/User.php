@@ -58,6 +58,8 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
 
     /**
      * Mitarbeiter-Datensatz zur Login-Rolle (nur für Self-Service-Rolle "nutzer").
+     *
+     * @return HasOne<Employee, $this>
      */
     public function employee(): HasOne
     {

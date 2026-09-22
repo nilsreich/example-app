@@ -58,6 +58,9 @@ class ShiftProposal extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * @return HasMany<ShiftFeedback, $this>
+     */
     public function feedbacks(): HasMany
     {
         return $this->hasMany(ShiftFeedback::class, 'proposal_id')->latest();

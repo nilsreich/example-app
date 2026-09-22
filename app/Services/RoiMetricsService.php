@@ -11,6 +11,7 @@ use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Kennzahlen-Ebene für ROI-Dashboard: Aggregiert DB-Fakten und delegiert
@@ -64,6 +65,7 @@ class RoiMetricsService
             ->where('status', ShiftStatus::Assigned)
             ->with('optimizations.proposals.feedbacks')
             ->chunk(100, function ($shifts) use (&$adopted, &$total): void {
+                /** @var Collection<int, Shift> $shifts */
                 foreach ($shifts as $shift) {
                     $latest = $shift->optimizations->first();
 
@@ -171,6 +173,8 @@ class RoiMetricsService
     /**
      * Ledger-Events im aktuellen Abteilungs-Scope: initiale Zuweisungen
      * der Referenz-Domäne, gehalten im generischen Audit-Ledger.
+     *
+     * @return Builder<AuditEvent>
      */
     private function auditEvents(): Builder
     {
@@ -187,6 +191,8 @@ class RoiMetricsService
 
     /**
      * Schicht-Query im aktuellen Abteilungs-Scope.
+     *
+     * @return Builder<Shift>
      */
     private function shifts(): Builder
     {

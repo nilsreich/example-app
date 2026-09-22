@@ -188,7 +188,7 @@ class SeedKiventroDemo extends Command
         $dispatcher = User::where('email', 'leitung.logistik@kiventro.de')->first();
 
         FeedbackReport::create([
-            'user_id' => $dispatcher?->id ?? $admin?->id,
+            'user_id' => $dispatcher->id ?? $admin->id,
             'category' => FeedbackCategory::Bug,
             'message' => 'Beim Rollback fehlte die Storno-Nachricht in der Bestätigung. Bitte prüfen, ob das Feld übernommen wird.',
             'page_url' => url('/admin/shifts'),
@@ -200,7 +200,7 @@ class SeedKiventroDemo extends Command
         ]);
 
         FeedbackReport::create([
-            'user_id' => $admin?->id ?? $dispatcher?->id,
+            'user_id' => $admin->id ?? $dispatcher->id,
             'category' => FeedbackCategory::Idea,
             'message' => 'Vorschlag: Konfidenz-Score im Slide-Over zusätzlich als Trendpfeil im Vergleich zum letzten Lauf zeigen.',
             'page_url' => url('/admin/shifts'),
@@ -218,6 +218,7 @@ class SeedKiventroDemo extends Command
      */
     private function seedHistory(ShiftOptimizationRunner $runner, ShiftAssignmentService $assignments): void
     {
+        /** @var list<array{int, string, string, list<string>, bool, FeedbackRating|null}> $entries */
         $entries = [
             // [Tage zurück, Titel, Abteilung, Qualifikation, Top-Match übernehmen?, Feedback]
             [12, 'Frühschicht Logistik (KW)', 'Logistik', ['Staplerschein'], true, FeedbackRating::Positive],
@@ -241,6 +242,11 @@ class SeedKiventroDemo extends Command
             $optimization = $runner->run($shift);
             $proposals = $optimization->proposals;
             $proposal = $takeTop ? $proposals->first() : ($proposals->skip(1)->first() ?? $proposals->first());
+
+            if ($proposal === null || $proposal->employee === null) {
+                continue;
+            }
+
             $event = $assignments->assign($shift, $proposal->employee);
 
             $models = [$optimization, $event, ...$proposals->all()];

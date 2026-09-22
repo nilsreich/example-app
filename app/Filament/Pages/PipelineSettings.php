@@ -29,6 +29,9 @@ class PipelineSettings extends Page
         return auth()->user()?->role->managesSettings() ?? false;
     }
 
+    /**
+     * @return array<string, string>
+     */
     public static function getDriverOptions(): array
     {
         return [

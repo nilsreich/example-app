@@ -58,6 +58,8 @@ class ShiftOptimization extends Model
 
     /**
      * Kandidaten-Vorschläge dieses Laufs, beste zuerst.
+     *
+     * @return HasMany<ShiftProposal, $this>
      */
     public function proposals(): HasMany
     {
@@ -66,6 +68,8 @@ class ShiftOptimization extends Model
 
     /**
      * Bester Vorschlag dieses Laufs (Score-Maximum, deterministischer Tie-Breaker).
+     *
+     * @return HasOne<ShiftProposal, $this>
      */
     public function topProposal(): HasOne
     {
