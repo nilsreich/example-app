@@ -16,9 +16,10 @@ Umgebungsvariablen** konfiguriert; es liegen keine Secrets im Repository.
 │  ◦ Auto-TLS Let's Encrypt   reverse_proxy   ◦ fpm clear_env=no      │
 │  ◦ Security-Header          app:9000        ◦ opcache (validate=0)  │
 │  ◦ flush_interval -1 (SSE)                   ◦ Non-Root: www-data   │
-│        │                                        │        │          │
-│        │   mysql:8.4 (DB-Daten)            redis:7-alpine (Cache/   │
-│        │   ◦ nur intern (kein Port)         Sessionen, nur intern)  │
+│        │                                        │       │           │
+│        │   mysql:8.4 (DB-Daten)   worker (queue) │   redis:7-alpine │
+│        │   ◦ nur intern            ◦ gleiches     │   (Cache/Sess., │
+│        │   (kein Port)             Image/Env     │    nur intern)   │
 │        └─────────────── Bridge-Netz „b2e“ ──────────────────────────┘
 │   Volumes: app-storage (Screenshots/Uploads), db-data, redis-data,  │
 │            caddy-data, caddy-config                                  │
@@ -27,7 +28,8 @@ Umgebungsvariablen** konfiguriert; es liegen keine Secrets im Repository.
 
 - **Alle Dienste** (außer Caddy) exposen **keine Ports** nach außen — nur Caddy
   erreicht den App-Container über das interne Bridge-Netz.
-- **Nicht-Root**: Der App-Container läuft als `www-data` (`USER www-data`).
+- **Nicht-Root**: App- und Worker-Container laufen als `www-data`
+  (`USER www-data` im Image).
 - **Sicherheits-Rails**: `APP_ENV=production` und `APP_DEBUG="false"` werden in
   `compose.prod.yaml` als Overrides erzwungen (unabhängig von lokalen .env-Werten).
 
@@ -162,10 +164,8 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_PASSWORD=null
 
-# Queue: 'database' – ohne eigenen Worker-Dienst bekommt jeder Request die Queue
-#          als Vordergrund-Job (empfohlen, solange KEIN Worker-Container läuft).
-# Mit separatem Worker (siehe „Hintergrund-Worker“ in docs/deploy.md):
-# QUEUE_CONNECTION=database  (dann Worker-Container starten)
+# Queue: 'database' – der worker-Dienst in compose.prod.yaml verarbeitet die
+#          Jobs asynchron (Checkpoint-6-Entscheidung: Worker sofort mitliefern).
 QUEUE_CONNECTION=database
 
 BROADCAST_CONNECTION=log
@@ -287,30 +287,41 @@ Tägliche Log-Rotation über `LOG_STACK=daily` / `LOG_DAILY_DAYS=30`.
 
 ## Hintergrund-Worker (Queue)
 
-Der Stack startet **standardmäßig keinen Queue-Worker**. Mit
-`QUEUE_CONNECTION=database` werden Jobs im selben Request verarbeitet (safe für
-kleine Setups ohne zeitkritische Jobs). Sobald zeitkritische oder langlaufende
-Jobs existieren, einen Worker-Dienst ergänzen (Beispiel in `compose.prod.yaml`
-ergänzen):
+Der Stack startet **einen separaten Worker-Dienst** (`worker`, Checkpoint-6-
+Entscheidung „mit Worker"). Er nutzt dasselbe Image/dieselbe `.env` wie `app`,
+wartet auf MySQL+Redis (service_healthy) und verarbeitet
+`QUEUE_CONNECTION=database`-Jobs asynchron:
 
 ```yaml
+# Auszug aus compose.prod.yaml (Dienst 'worker'):
 worker:
-    build: ./Dockerfile.prod
+    build:
+        context: .
+        dockerfile: Dockerfile.prod
     image: b2e-template/app:prod
+    init: true
     restart: unless-stopped
+    command:
+        [
+            "php",
+            "artisan",
+            "queue:work",
+            "--sleep=3",
+            "--tries=3",
+            "--max-time=3600",
+        ]
     env_file: [{ path: .env, required: false }]
-    environment:
-        APP_ENV: production
-        APP_DEBUG: "false"
-    command: php artisan queue:work --sleep=3 --tries=3
+    environment: { APP_ENV: production, APP_DEBUG: "false" }
     depends_on:
         mysql: { condition: service_healthy }
         redis: { condition: service_healthy }
+    volumes:
+        - app-storage:/var/www/html/storage
 ```
 
-> **Entscheidung offen (Checkpoint):** Queue-Worker sofort mitliefern oder erst
-> auf Bedarf? Standard: **ohne Worker** (geringere Ressourcen); Aufstieg jederzeit
-> über obigen Block.
+`--max-time=3600` erzwingt einen sauberen Worker-Neustart nach einer Stunde
+(Speicher/Ressourcen-Rotation); `restart: unless-stopped` plant ihn automatisch
+neu. Skalieren (mehr Worker): `docker compose -f compose.prod.yaml up -d --scale worker=2`.
 
 ## Mail
 
@@ -318,9 +329,8 @@ Default ist `MAIL_MAILER=log` (nichts wird versendet). Für Password-Reset &
 Notifications einen SMTP-Provider (z. B. Postmark, Brevo, Hetzner Mail, eigener
 Exchange) in der `.env` eintragen.
 
-> **Entscheidung offen (Checkpoint):** Welcher Mail-Provider ist erlaubt/Budget?
-> Solange unklar, bleibt `log` – versendende Funktionalität ist kein Pflichtteil
-> des Templates.
+> **Checkpoint-6-Entscheidung:** Mail-Provider = **log** (kein Versand) bis Bedarf
+> entsteht; Konfiguration ist oben vorbereitet.
 
 ## Sicherheits-Hinweise
 
