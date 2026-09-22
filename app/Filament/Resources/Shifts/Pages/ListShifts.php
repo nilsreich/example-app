@@ -20,10 +20,15 @@ class ListShifts extends ListRecords
                 ->label('Demo-Szenario laden')
                 ->icon('heroicon-o-arrow-path')
                 ->color('gray')
+                // Destruktiver Reset: ausschließlich für System-Verwaltung sichtbar.
+                ->visible(fn (): bool => (bool) auth()->user()?->role->managesSettings())
                 ->requiresConfirmation()
                 ->modalHeading('Demo-Szenario zurücksetzen?')
                 ->modalDescription('Alle kiventro Demo-Daten (Mitarbeiter, Schichten, Läufe, Feedback, Ledger) werden gelöscht und neu erzeugt.')
                 ->action(function (): void {
+                    // Sichtbarkeit ist keine Autorisierung – serverseitig absichern.
+                    abort_unless(auth()->user()?->role->managesSettings(), 403);
+
                     Artisan::call('db:seed-kiventro-demo');
 
                     Notification::make()
