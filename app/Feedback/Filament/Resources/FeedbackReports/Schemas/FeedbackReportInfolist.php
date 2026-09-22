@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\FeedbackReports\Schemas;
+namespace App\Feedback\Filament\Resources\FeedbackReports\Schemas;
 
-use App\Enums\FeedbackCategory;
-use App\Enums\FeedbackStatus;
-use App\Models\FeedbackReport;
+use App\Feedback\Enums\FeedbackCategory;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Models\FeedbackReport;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Pages;
+namespace App\Feedback\Filament\Pages;
 
 use App\Models\Setting;
 use BackedEnum;
@@ -21,11 +21,13 @@ class FeedbackSettings extends Page
     protected string $view = 'filament.pages.feedback-settings';
 
     /**
-     * Nur der Web-Admin schaltet das Feedback-Widget global.
+     * Nur der Web-Admin schaltet das Feedback-Widget global — und nur,
+     * solange das feedback-Modul konfigurativ aktiviert ist.
      */
     public static function canAccess(): bool
     {
-        return auth()->user()?->role->managesSettings() ?? false;
+        return config('feedback.enabled', true)
+            && (auth()->user()?->role->managesSettings() ?? false);
     }
 
     public static function isEnabled(): bool

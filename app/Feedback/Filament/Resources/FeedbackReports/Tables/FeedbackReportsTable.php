@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\FeedbackReports\Tables;
+namespace App\Feedback\Filament\Resources\FeedbackReports\Tables;
 
-use App\Enums\FeedbackCategory;
-use App\Enums\FeedbackStatus;
-use App\Models\FeedbackReport;
+use App\Feedback\Enums\FeedbackCategory;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Models\FeedbackReport;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -23,10 +23,6 @@ class FeedbackReportsTable
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('created_at')
-                    ->label('Eingang')
-                    ->since()
-                    ->sortable(),
                 TextColumn::make('category')
                     ->label('Kategorie')
                     ->badge()
@@ -73,7 +69,7 @@ class FeedbackReportsTable
                     ->icon('heroicon-o-play')
                     ->color('info')
                     ->visible(fn (FeedbackReport $record): bool => $record->status === FeedbackStatus::New)
-                    ->action(fn (FeedbackReport $record): mixed => $record->update(['status' => FeedbackStatus::InProgress])),
+                    ->action(fn (FeedbackReport $record): mixed => $record->transitionTo(FeedbackStatus::InProgress, actor: auth()->user())),
                 Action::make('resolve')
                     ->label('Erledigt')
                     ->icon('heroicon-o-check')
@@ -86,10 +82,7 @@ class FeedbackReportsTable
                     ])
                     ->fillForm(fn (FeedbackReport $record): array => ['resolution_note' => $record->resolution_note])
                     ->action(function (FeedbackReport $record, array $data): void {
-                        $record->update([
-                            'status' => FeedbackStatus::Resolved,
-                            'resolution_note' => $data['resolution_note'] ?? null,
-                        ]);
+                        $record->transitionTo(FeedbackStatus::Resolved, $data['resolution_note'] ?? null, actor: auth()->user());
 
                         Notification::make()->title('Meldung als erledigt markiert')->success()->send();
                     }),

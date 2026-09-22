@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Filament\Resources\FeedbackReports\Pages;
+namespace App\Feedback\Filament\Resources\FeedbackReports\Pages;
 
-use App\Filament\Resources\FeedbackReports\FeedbackReportResource;
+use App\Feedback\Filament\Resources\FeedbackReports\FeedbackReportResource;
 use Filament\Resources\Pages\ListRecords;
 
 class ListFeedbackReports extends ListRecords

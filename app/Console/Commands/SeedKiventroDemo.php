@@ -2,13 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\FeedbackCategory;
 use App\Enums\FeedbackRating;
-use App\Enums\FeedbackStatus;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
+use App\Feedback\Enums\FeedbackCategory;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Models\FeedbackReport;
 use App\Models\Employee;
-use App\Models\FeedbackReport;
 use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\ShiftFeedback;

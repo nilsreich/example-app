@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire;
+namespace App\Feedback\Livewire;
 
 use App\Models\Setting;
 use Illuminate\Contracts\View\View;

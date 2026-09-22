@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Filament\Resources\FeedbackReports;
+namespace App\Feedback\Filament\Resources\FeedbackReports;
 
-use App\Enums\FeedbackStatus;
-use App\Filament\Resources\FeedbackReports\Pages\ListFeedbackReports;
-use App\Filament\Resources\FeedbackReports\Pages\ViewFeedbackReport;
-use App\Filament\Resources\FeedbackReports\Schemas\FeedbackReportInfolist;
-use App\Filament\Resources\FeedbackReports\Tables\FeedbackReportsTable;
-use App\Models\FeedbackReport;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Filament\Resources\FeedbackReports\Pages\ListFeedbackReports;
+use App\Feedback\Filament\Resources\FeedbackReports\Pages\ViewFeedbackReport;
+use App\Feedback\Filament\Resources\FeedbackReports\Schemas\FeedbackReportInfolist;
+use App\Feedback\Filament\Resources\FeedbackReports\Tables\FeedbackReportsTable;
+use App\Feedback\Models\FeedbackReport;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;

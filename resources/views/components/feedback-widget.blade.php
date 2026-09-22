@@ -1,8 +1,10 @@
 @props([])
 
 @php
-    // Feature-Toggle: nur wenn im Admin aktiviert UND Nutzer angemeldet.
-    $feedbackEnabled = auth()->check() && \App\Models\Setting::feedbackWidgetEnabled();
+    // Feature-Toggle: Modul-Config aktiviert, im Admin aktiviert UND Nutzer angemeldet.
+    $feedbackEnabled = config('feedback.enabled', true)
+        && auth()->check()
+        && \App\Models\Setting::feedbackWidgetEnabled();
 @endphp
 
 @if ($feedbackEnabled)
@@ -23,7 +25,7 @@
             <div class="fw-body">
                 <label class="fw-label" for="fw-category">Kategorie</label>
                 <select id="fw-category" data-fw-category class="fw-input">
-                    @foreach (\App\Enums\FeedbackCategory::cases() as $category)
+                    @foreach (collect(\App\Feedback\Enums\FeedbackCategory::cases())->filter(fn ($category) => in_array($category->value, config('feedback.categories', ['bug', 'idea', 'question', 'other']), true))->all() as $category)
                         <option value="{{ $category->value }}">{{ $category->label() }}</option>
                     @endforeach
                 </select>

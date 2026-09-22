@@ -1,10 +1,10 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Feedback;
 
-use App\Enums\FeedbackCategory;
-use App\Enums\FeedbackStatus;
-use App\Models\FeedbackReport;
+use App\Feedback\Enums\FeedbackCategory;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Models\FeedbackReport;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -159,5 +159,39 @@ class FeedbackReportTest extends TestCase
         Setting::set(Setting::FEEDBACK_WIDGET_ENABLED, '1');
 
         $this->get('/admin')->assertOk()->assertSee('data-feedback-widget', escape: false);
+    }
+
+    public function test_module_can_be_disabled_via_config(): void
+    {
+        config(['feedback.enabled' => false]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        // Widget bleibt ausgeblendet, selbst wenn das Setting aktiv wäre.
+        Setting::set(Setting::FEEDBACK_WIDGET_ENABLED, '1');
+        $this->get(route('dashboard'))->assertOk()->assertDontSee('data-feedback-widget', escape: false);
+
+        // Triage ist für den Web-Admin trotz Berechtigung nicht erreichbar.
+        $this->get('/admin/feedback-reports')->assertForbidden();
+    }
+
+    public function test_category_list_is_configurable(): void
+    {
+        config(['feedback.categories' => ['bug']]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        // 'idea' ist aus der Config geflogen → Validierungsfehler.
+        $this->postJson(route('feedback.store'), $this->validPayload(['category' => 'idea']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('category');
+
+        // 'bug' bleibt erlaubt.
+        $this->postJson(route('feedback.store'), $this->validPayload(['category' => 'bug']))
+            ->assertCreated();
+
+        $this->assertSame(1, FeedbackReport::count());
     }
 }

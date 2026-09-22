@@ -1,8 +1,8 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Feedback;
 
-use App\Livewire\FeedbackSettingsForm;
+use App\Feedback\Livewire\FeedbackSettingsForm;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
