@@ -214,10 +214,9 @@ class ShiftOptimizerAgent implements Agent, AiAgent, HasStructuredOutput
         if ($overtime <= 120) {
             $score += 20;
             $reasons[] = sprintf('Nur %s Wochenüberstunden.', $this->formatMinutes($overtime));
-        } elseif ($overtime <= 300) {
-            $score += 10;
-            $tradeoffs[] = sprintf('Erhöht das Wochenüberstundenkonto (%s aktuell).', $this->formatMinutes($overtime));
         } else {
+            // 121–300 min: 10 Punkte, darüber: 0 Punkte – beide erhöhen das Überstundenkonto.
+            $score += $overtime <= 300 ? 10 : 0;
             $tradeoffs[] = sprintf('Erhöht das Wochenüberstundenkonto (%s aktuell).', $this->formatMinutes($overtime));
         }
 
