@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Audit\Filament\Pages\AuditLogPage;
 use App\Filament\Widgets\FeedbackChartWidget;
 use App\Filament\Widgets\RoiStatsWidget;
 use App\Filament\Widgets\RoleGuideWidget;
@@ -40,9 +41,12 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
+            ->discoverResources(in: app_path('Feedback/Filament/Resources'), for: 'App\Feedback\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
+            ->discoverPages(in: app_path('Feedback/Filament/Pages'), for: 'App\Feedback\Filament\Pages')
             ->pages([
                 Dashboard::class,
+                AuditLogPage::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
@@ -65,10 +69,6 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
-            ->renderHook(
-                PanelsRenderHook::BODY_END,
-                fn (): string => Blade::render('<x-feedback-widget />'),
-            )
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
                 fn (): string => Blade::render("@include('filament.auth.login-demo-hint')"),
