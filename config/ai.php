@@ -155,4 +155,51 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Agent Registry
+    |--------------------------------------------------------------------------
+    |
+    | Die AgentRegistry löst Agenten über diese Konfiguration auf. "agent_driver"
+    | ist der globale Standard-Treiber ("mock" = deterministischer Fake ohne
+    | API-Keys, "laravel-ai" = Laravel-AI-SDK mit echtem Provider). Jeder Agent
+    | kann den Treiber auch individuell überschreiben.
+    |
+    */
+
+    'agent_driver' => env('AI_AGENT_DRIVER', 'mock'),
+
+    'agents' => [
+        'example' => [
+            // Treiber: "mock" (Default) oder "laravel-ai".
+            'driver' => env('AI_AGENT_DRIVER', 'mock'),
+            // Nur für "laravel-ai" relevant: System-Prompt des Agenten.
+            'instructions' => 'Du bist ein hilfreicher Assistent. Antworte kurz und präzise.',
+            // Optional für "laravel-ai": Provider (Config-Key) und Modell.
+            'provider' => null,
+            'model' => null,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Conversations
+    |--------------------------------------------------------------------------
+    |
+    | Tabellen für agentenbasierte Konversationen. Die Laravel-AI-SDK-Modelle
+    | und die Konversations-Migration lesen diese Werte aus; die Tabellen
+    | "agent_conversations" / "agent_conversation_messages" werden über die
+    | publishierte SDK-Migration angelegt. Änderungen nur bewusst vornehmen
+    | (Ask-first bei Schema-Änderungen, siehe docs/ai.md).
+    |
+    */
+
+    'conversations' => [
+        'connection' => null,
+        'tables' => [
+            'conversations' => 'agent_conversations',
+            'messages' => 'agent_conversation_messages',
+        ],
+    ],
+
 ];
