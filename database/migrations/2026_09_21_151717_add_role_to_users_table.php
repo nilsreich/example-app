@@ -12,8 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            // Demo-Rollen: "admin" (Verwaltung) und "disponent" (Tagesgeschäft).
-            $table->string('role', 20)->default('disponent')->after('email');
+            // Rolle (App\Enums\UserRole). Default ist die Self-Service-Rolle,
+            // damit jede ohne explizite Rolle angelegte Zeile gültig hydriert.
+            $table->string('role', 20)->default('nutzer')->after('email');
             $table->index('role');
         });
     }

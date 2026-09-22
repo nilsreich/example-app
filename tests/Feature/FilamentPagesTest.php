@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
+use App\Filament\Resources\Shifts\Pages\ListShifts;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class FilamentPagesTest extends TestCase
@@ -86,5 +89,18 @@ class FilamentPagesTest extends TestCase
 
             $this->get('/admin')->assertOk();
         }
+    }
+
+    public function test_demo_reset_action_is_admin_only(): void
+    {
+        // Read-only-Rolle (GF) darf den destruktiven Demo-Reset nicht auslösen …
+        Livewire::actingAs(User::factory()->create(['role' => UserRole::Geschaeftsfuehrer]))
+            ->test(ListShifts::class)
+            ->assertActionHidden('seedDemo');
+
+        // … die System-Verwaltung schon.
+        Livewire::actingAs(User::factory()->create())
+            ->test(ListShifts::class)
+            ->assertActionVisible('seedDemo');
     }
 }

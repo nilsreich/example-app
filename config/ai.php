@@ -65,7 +65,7 @@ return [
             'deployment' => env('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o'),
             'embedding_deployment' => env('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-3-small'),
             'image_deployment' => env('AZURE_OPENAI_IMAGE_DEPLOYMENT', 'gpt-image-1'),
-            'store' => env('AZURE_OPENAI_STORE', true),
+            'store' => env('AZURE_OPENAI_STORE', false),
         ],
 
         'bedrock' => [
@@ -130,7 +130,7 @@ return [
             'driver' => 'openai',
             'key' => env('OPENAI_API_KEY'),
             'url' => env('OPENAI_URL', 'https://api.openai.com/v1'),
-            'store' => env('OPENAI_STORE', true),
+            'store' => env('OPENAI_STORE', false),
         ],
 
         'openai-compatible' => [
@@ -182,14 +182,14 @@ return [
 
         // kiventro Shift-Optimierer (Demo-Referenz, siehe docs/ai.md Variante B):
         // Registriert eine eigene Agent-Klasse, die den AiAgent-Vertrag
-        // implementiert. Die Registry instanziiert sie über den Container;
-        // für "laravel-ai" greifen instructions/Provider/Modell aus dem
-        // ShiftOptimizerAgent (Promptable-Schema erzwingt strukturierte Antworten).
+        // implementiert. Die Registry instanziiert sie über den Container und
+        // reicht provider/model durch. Der Treiber (mock/live) wird NICHT hier,
+        // sondern zur Laufzeit über den Admin-Toggle (Setting::aiPipelineDriver)
+        // gesteuert – siehe ShiftOptimizationRunner.
         'shift-optimizer' => [
             'class' => 'App\\Ai\\Agents\\ShiftOptimizerAgent',
-            'driver' => env('AI_AGENT_DRIVER', 'mock'),
-            'provider' => null,
-            'model' => null,
+            'provider' => env('AI_SHIFT_OPTIMIZER_PROVIDER'),
+            'model' => env('AI_SHIFT_OPTIMIZER_MODEL'),
         ],
     ],
 

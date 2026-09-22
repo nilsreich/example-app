@@ -13,6 +13,12 @@ public/build
 public/hot
 public/storage
 
+# Lokale Datenbanken — niemals ins Image (enthalten Demo-/Nutzerdaten)
+database/*.sqlite
+database/*.sqlite-journal
+database/*.sqlite-wal
+database/*.sqlite-shm
+
 # Laufzeit-Daten (werden als Volumes gemountet)
 storage/app/private
 storage/app/public

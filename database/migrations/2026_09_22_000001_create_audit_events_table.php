@@ -1,5 +1,6 @@
 <?php
 
+use App\Audit\Support\AuditGuards;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -11,8 +12,14 @@ return new class extends Migration
         Schema::create('audit_events', function (Blueprint $table) {
             $table->id();
             $table->nullableMorphs('auditable');
+            // Bewusst OHNE FK-Constraint: Das Ledger ist append-only (DB-Trigger
+            // verhindern jedes UPDATE/DELETE). Ein FK kollidiert damit – nullOnDelete
+            // würde eine Ledger-Zeile updaten (Trigger-Abbruch), restrictOnDelete
+            // würde die Kontolöschung sperren. Die Akteur-Identität bleibt über das
+            // zum Schreibzeitpunkt denormalisierte, unveränderliche actor_label
+            // nachvollziehbar (statt über die FK-Spalte im Hash-Payload).
             $table->unsignedBigInteger('actor_user_id')->nullable();
-            $table->foreign('actor_user_id')->references('id')->on('users')->nullOnDelete();
+            $table->string('actor_label')->nullable();
             $table->string('event_type', 50);
             $table->json('previous_state')->nullable();
             $table->json('new_state')->nullable();
@@ -25,11 +32,18 @@ return new class extends Migration
             $table->timestamp('created_at')->nullable();
             $table->index('event_type');
             $table->index('created_at');
+            // Version ist pro Entität eindeutig (verhindert doppelte Ledger-Versionen).
+            $table->unique(['auditable_type', 'auditable_id', 'version'], 'audit_events_entity_version_unique');
         });
+
+        // Append-only zusätzlich auf DB-Ebene erzwingen.
+        AuditGuards::enable();
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('audit_events');
+        // GoBD: Die Ledger-Historie wird bewusst nicht automatisch entfernt.
+        // Ein Rollback würde die revisionssichere Nachweiskette vernichten.
+        throw new RuntimeException('Die Audit-Ledger-Migration kann nicht zurückgerollt werden (GoBD).');
     }
 };

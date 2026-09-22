@@ -47,7 +47,7 @@ class RoiMetricsTest extends TestCase
         app(ShiftAssignmentService::class)->assign($shiftA, $top->employee);
 
         // Schicht B: manuell besetzt ohne Pipeline-Lauf → gelöst, aber keine Automations-Basis.
-        app(ShiftAssignmentService::class)->assign(Shift::factory()->create(), Employee::factory()->create());
+        app(ShiftAssignmentService::class)->assign(Shift::factory()->create(['required_qualifications' => []]), Employee::factory()->create());
 
         $metrics = $this->metrics();
 

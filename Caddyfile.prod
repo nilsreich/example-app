@@ -41,9 +41,8 @@
     }
 
     # Interner Healthcheck-Endpunkt bleibt funktional (compose-Healthcheck).
-    handle /up {
-        reverse_proxy app:9000
-    }
+    # (Der reverse_proxy oben deckt /up bereits ab — der explizite Handle ist nur
+    # Selbst-Dokumentation; siehe docs/deploy.md.)
 }
 
 # HTTP → HTTPS macht Caddy automatisch (auto-HTTPS). Kein eigenes Port-80-Routing nötig.

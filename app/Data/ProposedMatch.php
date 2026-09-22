@@ -20,6 +20,31 @@ final readonly class ProposedMatch
     ) {}
 
     /**
+     * Normalisiert eine beliebige Treiber-Antwort (Mock-Fixture oder
+     * AI-Structured-Output) zu einer Liste von Matches. Nicht-Array-Eingaben
+     * und Nicht-Array-Elemente werden verworfen statt zu werfen – die
+     * Modellgrenze ist untrusted (LLM-Output kann jeden Typ liefern).
+     *
+     * @return list<self>
+     */
+    public static function listFrom(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $matches = [];
+
+        foreach ($raw as $item) {
+            if (is_array($item)) {
+                $matches[] = self::fromArray($item);
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
      * Baut einen Match aus Treiber-Rohdaten (Mock-Fixture oder AI-Structured-Output).
      * Unvollständige Einträge werden defensiv normalisiert statt zu werfen.
      *

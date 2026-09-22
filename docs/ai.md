@@ -62,6 +62,12 @@ Der Provider-Block bleibt unangetastet (Laravel-AI-Standard). Ergänzt wurden:
   `AI_AGENT_DRIVER` ist nicht gesetzt → `mock`. Kein Test, keine CI benötigt Keys.
 - Umstellung auf einen echten Provider pro Deployment:
   `AI_AGENT_DRIVER=laravel-ai` + Key/Endpoint im Provider-Block setzen.
+- Ausnahme Demo-Agent `shift-optimizer`: Sein Treiber wird zur Laufzeit über
+  den Admin-Toggle (`ai_pipeline_mode` / `Setting::aiPipelineDriver()`) gesteuert,
+  **nicht** über `AI_AGENT_DRIVER`. `AI_SHIFT_OPTIMIZER_PROVIDER` und
+  `AI_SHIFT_OPTIMIZER_MODEL` überschreiben optional Provider und Modell.
+  Live-Läufe laufen asynchron über die Queue (`RunShiftOptimization`), damit der
+  Provider-Aufruf den Request nicht blockiert.
 
 ## Neuen Agenten beilegen (Doku-Beispiel)
 

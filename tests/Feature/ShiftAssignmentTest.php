@@ -20,7 +20,7 @@ class ShiftAssignmentTest extends TestCase
     public function test_assigning_open_shift_records_initial_assignment(): void
     {
         $shift = Shift::factory()->create();
-        $employee = Employee::factory()->create();
+        $employee = Employee::factory()->qualified()->create();
 
         $event = app(ShiftAssignmentService::class)->assign($shift, $employee);
 
@@ -34,9 +34,9 @@ class ShiftAssignmentTest extends TestCase
     public function test_reassigning_records_manual_override_with_incremented_version(): void
     {
         $shift = Shift::factory()->create();
-        $replacement = Employee::factory()->create();
+        $replacement = Employee::factory()->qualified()->create();
 
-        app(ShiftAssignmentService::class)->assign($shift, Employee::factory()->create());
+        app(ShiftAssignmentService::class)->assign($shift, Employee::factory()->qualified()->create());
         $event = app(ShiftAssignmentService::class)->assign($shift, $replacement, 'Besserer Match (Score 94).');
 
         $this->assertSame(AuditEventType::ManualOverride, $event->event_type);
@@ -45,9 +45,20 @@ class ShiftAssignmentTest extends TestCase
         $this->assertSame('Besserer Match (Score 94).', $event->new_state['note']);
     }
 
+    public function test_assigning_employee_without_required_qualification_throws(): void
+    {
+        $shift = Shift::factory()->create(['required_qualifications' => ['Kranführerschein']]);
+        $employee = Employee::factory()->create(['qualifications' => ['Staplerschein']]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Kranführerschein');
+
+        app(ShiftAssignmentService::class)->assign($shift, $employee);
+    }
+
     public function test_assigning_inactive_or_cancelled_shift_throws(): void
     {
-        $shift = Shift::factory()->create();
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
 
         $this->expectException(InvalidArgumentException::class);
         app(ShiftAssignmentService::class)->assign($shift, Employee::factory()->inactive()->create());
@@ -56,13 +67,16 @@ class ShiftAssignmentTest extends TestCase
     public function test_assigning_cancelled_shift_throws(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        app(ShiftAssignmentService::class)->assign(Shift::factory()->cancelled()->create(), Employee::factory()->create());
+        app(ShiftAssignmentService::class)->assign(
+            Shift::factory()->cancelled()->create(['required_qualifications' => []]),
+            Employee::factory()->qualified()->create(),
+        );
     }
 
     public function test_rollback_reopens_shift_as_new_forward_event(): void
     {
         $shift = Shift::factory()->create();
-        $assignment = app(ShiftAssignmentService::class)->assign($shift, Employee::factory()->create());
+        $assignment = app(ShiftAssignmentService::class)->assign($shift, Employee::factory()->qualified()->create());
 
         $event = app(ShiftRollbackService::class)->rollback($shift, 'Mitarbeiter erkrankt', 'Einsatz storniert.');
 

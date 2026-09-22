@@ -21,8 +21,11 @@ Route::middleware('auth')->group(function () {
     Route::get('feedback/{feedbackReport}/screenshot', FeedbackScreenshotController::class)
         ->name('feedback.screenshot');
 
-    // GoBD-Export des Audit-Trails – Berechtigung via Gate `audit.export`.
-    Route::get('audit/export', AuditExportController::class)->name('audit.export');
+    // GoBD-Export des Audit-Trails – Berechtigung via Gate `audit.export`,
+    // zusätzlich verifizierte E-Mail und Drosselung (teurer, unbounded Export).
+    Route::get('audit/export', AuditExportController::class)
+        ->middleware(['verified', 'throttle:30,1'])
+        ->name('audit.export');
 });
 
 require __DIR__.'/settings.php';

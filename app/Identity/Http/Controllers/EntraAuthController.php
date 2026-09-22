@@ -34,7 +34,24 @@ class EntraAuthController extends Controller
      */
     public function callback(Request $request): RedirectResponse
     {
-        $socialiteUser = $this->socialite->driver('microsoft')->user();
+        try {
+            $socialiteUser = $this->socialite->driver('microsoft')->user();
+        } catch (\Throwable $e) {
+            // Consent-Deny, abgelaufener State, Provider-Fehler: kein 500er,
+            // sondern wie eine verweigerte Anmeldung behandeln.
+            report($e);
+
+            $this->ledger->record(
+                eventType: AuditEventType::LoginFailed,
+                previousState: [],
+                newState: ['reason' => 'oauth_callback_failed'],
+                source: AuditSource::Entra,
+                ip: $request->ip(),
+                userAgent: $request->userAgent(),
+            );
+
+            return redirect()->route('login')->with('error', 'Anmeldung über Entra fehlgeschlagen.');
+        }
 
         $user = $this->userResolver->resolve($socialiteUser, $this->groupObjectIds($socialiteUser));
 

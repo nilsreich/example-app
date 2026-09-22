@@ -24,12 +24,28 @@ class ShiftAssignmentService
 
     public function assign(Shift $shift, Employee $employee, ?string $note = null): AuditEvent
     {
-        if (! $employee->is_active) {
-            throw new InvalidArgumentException('Inaktive Mitarbeiter können keiner Schicht zugewiesen werden.');
-        }
-
         return DB::transaction(function () use ($shift, $employee, $note): AuditEvent {
             $shift = Shift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+
+            // Mitarbeiter unter demselben Lock laden: paralleles Deaktivieren soll
+            // die Zuweisung nicht durchrutschen lassen.
+            $employee = Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
+
+            if (! $employee->is_active) {
+                throw new InvalidArgumentException('Inaktive Mitarbeiter können keiner Schicht zugewiesen werden.');
+            }
+
+            // Pflichtqualifikationen sind verbindlich, nicht nur Teil des Scores:
+            // eine Zuweisung ohne sie würde die Domänenregel der Schicht verletzen.
+            $missing = $employee->missingQualifications($shift->required_qualifications ?? []);
+
+            if ($missing !== []) {
+                throw new InvalidArgumentException(sprintf(
+                    '%s fehlt die Pflichtqualifikation: %s.',
+                    $employee->name,
+                    implode(', ', $missing),
+                ));
+            }
 
             if ($shift->status === ShiftStatus::Cancelled) {
                 throw new InvalidArgumentException('Stornierte Schichten können nicht zugewiesen werden.');
@@ -40,10 +56,9 @@ class ShiftAssignmentService
                 : AuditEventType::ManualOverride;
 
             $previousState = $shift->snapshot();
-            $shift->update([
-                'assigned_employee_id' => $employee->id,
-                'status' => ShiftStatus::Assigned,
-            ]);
+            $shift->assigned_employee_id = $employee->id;
+            $shift->status = ShiftStatus::Assigned;
+            $shift->save();
 
             $newState = $shift->fresh()->snapshot();
             if ($note !== null && $note !== '') {

@@ -233,4 +233,43 @@ class FeedbackReportTest extends TestCase
 
         $this->assertSame(1, FeedbackReport::count());
     }
+
+    public function test_category_must_be_a_known_enum_value(): void
+    {
+        // Eine ungültige Config-Kategorie darf nicht zu einem Enum-ValueError (500) führen.
+        config(['feedback.categories' => ['bug', 'panic']]);
+
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('feedback.store'), $this->validPayload(['category' => 'panic']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('category');
+
+        $this->assertSame(0, FeedbackReport::count());
+    }
+
+    public function test_browser_info_is_bounded(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('feedback.store'), $this->validPayload([
+                'browser_info' => ['nested' => ['too' => 'deep']],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('browser_info.nested');
+
+        $this->assertSame(0, FeedbackReport::count());
+    }
+
+    public function test_oversized_screenshot_payload_is_rejected(): void
+    {
+        // Gültiges Präfix, aber die rohe Data-URL überschreitet die Obergrenze –
+        // wird vor dem Base64-Decode abgewiesen.
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('feedback.store'), $this->validPayload([
+                'screenshot' => 'data:image/png;base64,'.str_repeat('A', 3_500_000),
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('screenshot');
+
+        $this->assertSame(0, FeedbackReport::count());
+    }
 }

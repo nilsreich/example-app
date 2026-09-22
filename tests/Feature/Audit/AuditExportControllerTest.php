@@ -39,11 +39,14 @@ final class AuditExportControllerTest extends TestCase
             auditable: Employee::factory()->create(),
         );
 
-        $this->get('/audit/export')
-            ->assertOk()
+        $response = $this->get('/audit/export');
+
+        $response->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8')
-            ->assertHeader('Content-Disposition', 'attachment; filename="audit-export.csv"')
-            ->assertSee('event_type', false);
+            ->assertHeader('Content-Disposition', 'attachment; filename=audit-export.csv')
+            ->assertStreamed();
+
+        $this->assertStringContainsString('event_type', $response->streamedContent());
     }
 
     public function test_management_role_can_download_json(): void
@@ -51,10 +54,13 @@ final class AuditExportControllerTest extends TestCase
         $user = User::factory()->create(['role' => 'geschaeftsfuehrer']);
         $this->actingAs($user);
 
-        $this->get('/audit/export?format=json')
-            ->assertOk()
+        $response = $this->get('/audit/export?format=json');
+
+        $response->assertOk()
             ->assertHeader('Content-Type', 'application/json')
-            ->assertSee('"events":', false);
+            ->assertStreamed();
+
+        $this->assertStringContainsString('"events":', $response->streamedContent());
     }
 
     public function test_unknown_format_is_rejected(): void
@@ -73,5 +79,18 @@ final class AuditExportControllerTest extends TestCase
         $this->get('/audit/export?event_type=created')->assertOk();
         $this->get('/audit/export?from=2026-01-01')->assertOk();
         $this->get('/audit/export?actor='.$user->id)->assertOk();
+    }
+
+    public function test_export_is_recorded_in_the_ledger(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->get('/audit/export')->assertOk();
+
+        $this->assertDatabaseHas('audit_events', [
+            'event_type' => AuditEventType::Exported->value,
+            'actor_user_id' => $user->id,
+        ]);
     }
 }

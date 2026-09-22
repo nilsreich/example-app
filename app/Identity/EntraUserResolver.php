@@ -39,6 +39,14 @@ final readonly class EntraUserResolver
             return null;
         }
 
+        // Ungültiger Config-Wert im Gruppen-Mapping darf keinen 500er zur
+        // Login-Zeit auslösen: fail-closed statt ValueError.
+        $role = UserRole::tryFrom($mapped['role']);
+
+        if ($role === null) {
+            return null;
+        }
+
         $user = User::query()
             ->where('entra_object_id', $entraUser->getId())
             ->first();
@@ -57,13 +65,24 @@ final readonly class EntraUserResolver
             $user = new User;
         }
 
-        $previousRole = $user->exists ? $user->getOriginal('role') : null;
-        $previousDepartment = $user->exists ? $user->getOriginal('department') : null;
+        // getRawOriginal liefert den Roh-String (nicht den Enum-Cast). Sonst
+        // vergleicht der Audit-Check Enum !== string und erzeugt bei jedem
+        // SSO-Login ein falsches RoleChanged-Event.
+        $previousRole = $user->exists ? $user->getRawOriginal('role') : null;
+        $previousDepartment = $user->exists ? $user->getRawOriginal('department') : null;
+
+        $email = $entraUser->getEmail();
+
+        // E-Mail-Wechsel darf nicht mit einem anderen Konto kollidieren
+        // (Unique-Constraint) – dann Login verweigern statt 500.
+        if ($user->exists && $email !== $user->email && $this->emailBelongsToAnother($user, $email)) {
+            return null;
+        }
 
         $user->entra_object_id = $entraUser->getId();
-        $user->name = $entraUser->getName() ?? $entraUser->getNickname() ?? $entraUser->getEmail();
-        $user->email = $entraUser->getEmail();
-        $user->role = UserRole::from($mapped['role']);
+        $user->name = $entraUser->getName() ?? $entraUser->getNickname() ?? $email;
+        $user->email = $email;
+        $user->role = $role;
         $user->department = $mapped['department'];
         $user->email_verified_at ??= Carbon::now();
         $user->save();
@@ -93,5 +112,17 @@ final readonly class EntraUserResolver
         }
 
         return $user;
+    }
+
+    private function emailBelongsToAnother(User $user, ?string $email): bool
+    {
+        if ($email === null) {
+            return false;
+        }
+
+        return User::query()
+            ->where('email', $email)
+            ->whereKeyNot($user->getKey())
+            ->exists();
     }
 }

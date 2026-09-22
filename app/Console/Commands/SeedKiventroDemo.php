@@ -16,11 +16,10 @@ use App\Models\ShiftFeedback;
 use App\Models\User;
 use App\Services\ShiftAssignmentService;
 use App\Services\ShiftOptimizationRunner;
-use Carbon\CarbonInterface;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -163,15 +162,18 @@ class SeedKiventroDemo extends Command
 
         $tomorrow = now()->addDay()->startOfDay();
 
-        Shift::create([
+        // Über den Service: die Self-Service-Schicht wird damit genauso
+        // revisionssicher protokolliert wie jede andere Zuweisung.
+        $shift = Shift::create([
             'title' => 'Spätschicht Logistik (Self-Service)',
             'starts_at' => $tomorrow->copy()->setTime(14, 0),
             'ends_at' => $tomorrow->copy()->setTime(22, 0),
             'department' => 'Logistik',
             'required_qualifications' => ['Staplerschein'],
-            'status' => ShiftStatus::Assigned,
-            'assigned_employee_id' => $employee->id,
+            'status' => ShiftStatus::Open,
         ]);
+
+        app(ShiftAssignmentService::class)->assign($shift, $employee, 'Self-Service-Demo: direkt zugewiesen.');
     }
 
     /**
@@ -225,8 +227,15 @@ class SeedKiventroDemo extends Command
             [2, 'Frühschicht Logistik (KW)', 'Logistik', ['Staplerschein'], false, null],
         ];
 
+        $base = now();
+
         foreach ($entries as [$daysAgo, $title, $department, $required, $takeTop, $feedbackRating]) {
-            $day = now()->subDays($daysAgo)->startOfDay();
+            // Historische Zeitachse: now() wird auf den Schichttag fixiert, damit
+            // Modelle UND Ledger-Events (created_at steckt im Hash-Payload) von
+            // vornherein mit dem korrekten Datum entstehen – kein Nachtrag-Update,
+            // das mit dem append-only-Trigger kollidieren würde.
+            $day = $base->copy()->subDays($daysAgo)->startOfDay();
+            Date::setTestNow($day);
 
             $shift = Shift::create([
                 'title' => $title,
@@ -245,56 +254,26 @@ class SeedKiventroDemo extends Command
                 continue;
             }
 
-            $event = $assignments->assign($shift, $proposal->employee);
-
-            $models = [$optimization, $event, ...$proposals->all()];
-            $feedback = null;
+            $assignments->assign($shift, $proposal->employee);
 
             if ($feedbackRating !== null) {
-                $feedback = ShiftFeedback::create([
+                ShiftFeedback::create([
                     'proposal_id' => $proposal->id,
                     'rating' => $feedbackRating,
                     'reason_category' => $feedbackRating === FeedbackRating::Negative ? 'Regelkonflikt' : null,
                     'comment' => $feedbackRating === FeedbackRating::Negative ? 'Demo: Ruhezeit grenzwertig.' : 'Demo: Reibungslos übernommen.',
                 ]);
-                $models[] = $feedback;
             }
 
-            // Vorgeschichte auf das Schichtdatum zurückdatieren (Charts gruppieren nach Tag).
-            foreach ($models as $model) {
-                $this->backdate($model, $day);
-            }
+            Date::setTestNow();
         }
-    }
-
-    private function backdate(Model $model, CarbonInterface $date): void
-    {
-        // Audit-Events sind append-only (Modell-save() ist verboten); created_at
-        // ist reine Historie-Metadaten und gehört nicht zum Hash-Block. Für das
-        // Demo-Backdating daher die einzige bewusste Ausnahme per Query.
-        if ($model instanceof AuditEvent) {
-            AuditEvent::query()->whereKey($model->getKey())->update(['created_at' => $date]);
-
-            return;
-        }
-
-        // Ledger-Tabellen (audit_events) haben kein updated_at – hier nur reguläre Demo-Modelle.
-        $attributes = ['created_at' => $date];
-
-        if (
-            $model->getUpdatedAtColumn() !== null
-            && in_array($model->getUpdatedAtColumn(), Schema::getColumnListing($model->getTable()), true)
-        ) {
-            $attributes['updated_at'] = $date;
-        }
-
-        $model->timestamps = false;
-        $model->forceFill($attributes)->save();
-        $model->timestamps = true;
     }
 
     /**
-     * Setzt NUR die Demo-Domäne zurück (User, Settings und AI-SDK-Tabellen bleiben bestehen).
+     * Setzt NUR die Demo-Domäne zurück (User, Settings und AI-SDK-Tabellen
+     * bleiben bestehen). Der Ledger der Demo-Domäne wird mitgelöscht – sonst
+     * summierten sich verwaiste Ereignisse früherer Resets in den ROI-Zahlen
+     * auf (die UI verspricht den Reset ausdrücklich inkl. Ledger).
      */
     private function resetDemoTables(): void
     {
@@ -303,6 +282,10 @@ class SeedKiventroDemo extends Command
         foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shifts', 'employees'] as $table) {
             DB::table($table)->delete();
         }
+
+        AuditEvent::where('auditable_type', Shift::class)
+            ->orWhere('auditable_type', Employee::class)
+            ->delete();
 
         Schema::enableForeignKeyConstraints();
     }

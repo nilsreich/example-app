@@ -2,6 +2,9 @@
 
 namespace Tests\Unit\Ai;
 
+use App\Ai\Contracts\AiAgent;
+use App\Ai\Data\AiResult;
+use App\Ai\Enums\AiDriver;
 use App\Ai\Pipelines\LaravelAiSdkPipeline;
 use App\Ai\Pipelines\MockDeterministicPipeline;
 use App\Ai\Services\AgentRegistry;
@@ -73,5 +76,36 @@ class AgentRegistryTest extends TestCase
         $second = $registry->agent('example');
 
         $this->assertSame($first, $second);
+    }
+
+    public function test_registry_passes_provider_and_model_to_class_based_agent(): void
+    {
+        config(['ai.agents.configurable' => [
+            'class' => ConfigurableTestAgent::class,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+        ]]);
+
+        $agent = $this->registry()->agent('configurable');
+
+        $this->assertInstanceOf(ConfigurableTestAgent::class, $agent);
+        $this->assertSame('openai', $agent->provider);
+        $this->assertSame('gpt-4o-mini', $agent->model);
+    }
+}
+
+/**
+ * Test-Double: nimmt provider/model als Konstruktorparameter an.
+ */
+final class ConfigurableTestAgent implements AiAgent
+{
+    public function __construct(
+        public ?string $provider = null,
+        public ?string $model = null,
+    ) {}
+
+    public function run(string $prompt, array $context = []): AiResult
+    {
+        return new AiResult(agent: 'configurable', driver: AiDriver::Mock, text: 'ok');
     }
 }

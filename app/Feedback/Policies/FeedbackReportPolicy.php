@@ -23,11 +23,6 @@ class FeedbackReportPolicy
         return config('feedback.enabled', true) && $user->role->managesSettings();
     }
 
-    public function create(User $user): bool
-    {
-        return config('feedback.enabled', true) && $user->role->managesSettings();
-    }
-
     public function update(User $user, FeedbackReport $feedbackReport): bool
     {
         return config('feedback.enabled', true) && $user->role->managesSettings();
@@ -36,15 +31,5 @@ class FeedbackReportPolicy
     public function delete(User $user, FeedbackReport $feedbackReport): bool
     {
         return config('feedback.enabled', true) && $user->role->managesSettings();
-    }
-
-    public function restore(User $user, FeedbackReport $feedbackReport): bool
-    {
-        return false;
-    }
-
-    public function forceDelete(User $user, FeedbackReport $feedbackReport): bool
-    {
-        return false;
     }
 }

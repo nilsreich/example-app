@@ -2,6 +2,7 @@
 
 namespace App\Feedback\Http\Controllers;
 
+use App\Feedback\Enums\FeedbackCategory;
 use App\Feedback\Models\FeedbackReport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,13 +18,24 @@ final class FeedbackReportController
 {
     private const MAX_SCREENSHOT_BYTES = 2_500_000;
 
+    /**
+     * Obergrenze für die rohe Base64-Data-URL (~4/3 der Binärgröße + Präfix).
+     * Wird VOR dem Dekodieren geprüft, damit Riesen-Payloads keinen Speicher binden.
+     */
+    private const MAX_SCREENSHOT_PAYLOAD = 3_400_000;
+
     public function store(Request $request): JsonResponse
     {
         abort_unless(config('feedback.enabled', true), 404);
 
         $validated = $request->validate([
-            // Kategorien sind über config/feedback.php konfigurierbar.
-            'category' => ['required', Rule::in(config('feedback.categories', ['bug', 'idea', 'question', 'other']))],
+            // Kategorien sind über config/feedback.php konfigurierbar, müssen aber
+            // gültige FeedbackCategory-Werte sein (sonst ValueError beim Enum-Cast).
+            'category' => [
+                'required',
+                Rule::enum(FeedbackCategory::class),
+                Rule::in(config('feedback.categories', ['bug', 'idea', 'question', 'other'])),
+            ],
             'message' => ['required', 'string', 'min:3', 'max:2000'],
             'page_url' => [
                 'required',
@@ -37,8 +49,9 @@ final class FeedbackReportController
             'page_title' => ['nullable', 'string', 'max:500'],
             'element_selector' => ['nullable', 'string', 'max:500'],
             'element_text' => ['nullable', 'string', 'max:500'],
-            'browser_info' => ['nullable', 'array'],
-            'screenshot' => ['nullable', 'string'],
+            'browser_info' => ['nullable', 'array', 'max:10'],
+            'browser_info.*' => ['nullable', 'string', 'max:500'],
+            'screenshot' => ['nullable', 'string', 'max:'.self::MAX_SCREENSHOT_PAYLOAD],
         ]);
 
         $report = FeedbackReport::create([
@@ -70,7 +83,14 @@ final class FeedbackReportController
             throw ValidationException::withMessages(['screenshot' => 'Ungültiges Bildformat.']);
         }
 
-        $binary = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
+        $encoded = substr($dataUrl, strpos($dataUrl, ',') + 1);
+
+        // Größe vor dem Dekodieren prüfen (verhindert Speicherlast durch Riesen-Payloads).
+        if (strlen($encoded) > self::MAX_SCREENSHOT_PAYLOAD) {
+            throw ValidationException::withMessages(['screenshot' => 'Screenshot ist zu groß (max. 2,5 MB).']);
+        }
+
+        $binary = base64_decode($encoded, true);
 
         if ($binary === false) {
             throw ValidationException::withMessages(['screenshot' => 'Ungültige Bilddaten.']);

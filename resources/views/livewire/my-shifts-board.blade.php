@@ -76,6 +76,9 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-3">
+                    {{ $shifts->links() }}
+                </div>
             @endif
         </div>
     @endif

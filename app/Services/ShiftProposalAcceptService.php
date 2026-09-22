@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Ai\Data\AiResult;
 use App\Ai\Enums\AiDecision;
-use App\Ai\Enums\AiDriver;
 use App\Ai\Services\AiDecisionAuditor;
 use App\Audit\Models\AuditEvent;
 use App\Models\Shift;
@@ -51,17 +50,9 @@ class ShiftProposalAcceptService
 
     private function recordDecision(Shift $shift, ShiftProposal $proposal, ?User $actor): void
     {
-        $raw = $proposal->optimization->raw_response ?? [];
-        $conversationId = $raw['conversation_id'] ?? null;
-
         $this->aiDecisions->record(
             decision: AiDecision::Accepted,
-            result: new AiResult(
-                agent: (string) ($raw['agent'] ?? 'shift-optimizer'),
-                driver: AiDriver::tryFrom((string) ($raw['driver'] ?? 'mock')) ?? AiDriver::Mock,
-                text: (string) ($raw['text'] ?? ''),
-                conversationId: is_string($conversationId) ? $conversationId : null,
-            ),
+            result: AiResult::fromRawResponse($proposal->optimization->raw_response ?? null),
             auditable: $shift,
             actor: $actor,
         );

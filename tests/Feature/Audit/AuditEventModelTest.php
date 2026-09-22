@@ -7,7 +7,9 @@ use App\Audit\Enums\AuditSource;
 use App\Audit\Models\AuditEvent;
 use App\Models\Employee;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class AuditEventModelTest extends TestCase
@@ -101,9 +103,40 @@ final class AuditEventModelTest extends TestCase
             'auditable_id' => $employee->id,
             'event_type' => AuditEventType::Created,
             'source' => AuditSource::Cli,
+            // Employee nutzt den Auditable-Trait: das Erstellen hat bereits
+            // Version 1 geschrieben, daher hier Version 2.
+            'version' => 2,
             'hash' => self::DUMMY_HASH,
         ]);
 
         $this->assertTrue($event->auditable->is($employee));
+    }
+
+    public function test_database_rejects_raw_updates(): void
+    {
+        $event = AuditEvent::query()->create([
+            'event_type' => AuditEventType::Created,
+            'source' => AuditSource::Web,
+            'hash' => self::DUMMY_HASH,
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        DB::table('audit_events')
+            ->where('id', $event->id)
+            ->update(['new_state' => json_encode(['tampered' => true])]);
+    }
+
+    public function test_database_rejects_raw_deletes(): void
+    {
+        $event = AuditEvent::query()->create([
+            'event_type' => AuditEventType::Created,
+            'source' => AuditSource::Web,
+            'hash' => self::DUMMY_HASH,
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        DB::table('audit_events')->where('id', $event->id)->delete();
     }
 }

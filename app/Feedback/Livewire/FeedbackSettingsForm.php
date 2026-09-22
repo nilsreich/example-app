@@ -23,6 +23,8 @@ class FeedbackSettingsForm extends Component
 
     public function save(): void
     {
+        abort_unless(auth()->user()?->role->managesSettings(), 403);
+
         Setting::set(Setting::FEEDBACK_WIDGET_ENABLED, $this->enabled ? '1' : '0');
 
         $this->notice = $this->enabled

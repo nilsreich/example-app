@@ -38,10 +38,11 @@ return [
     // Entra-ID-SSO (B2E-Template): gleiche ENV-Quelle wie config/entra.php.
     // Der Microsoft-Provider liest 'tenant' als zusätzlichen Config-Key.
     //
-    // WICHTIG (tenant): 'common' erlaubt persönliche Microsoft-Konten und
-    // Cross-Tenant-Logins — nur sinnvoll, wenn die App-Registrierung dafür
-    // ausgelegt ist. Für feste Mandanten hier explizit die Entra-Tenant-ID
-    // setzen (ENTRA_TENANT_ID), damit Konten fremder Mandanten abgelehnt werden.
+    // WICHTIG (tenant): kein 'common'-Fallback. Ohne explizite
+    // ENTRA_TENANT_ID bleibt der Tenant leer und der Provider baut keine
+    // gültige Authorize-URL (fail-closed) statt persönliche/Cross-Tenant-
+    // Konten zu akzeptieren. Für feste Mandanten hier die Entra-Tenant-ID
+    // setzen (ENTRA_TENANT_ID).
     // 'groups' im ID-Token liefert Entra nur, wenn das Azure-App-Manifest
     // 'groupMembershipClaims' aktiviert hat; ohne dieses Claim werden Logins
     // mit konfiguriertem group_mapping bewusst abgelehnt (Fail-closed).
@@ -49,7 +50,7 @@ return [
         'client_id' => env('ENTRA_CLIENT_ID'),
         'client_secret' => env('ENTRA_CLIENT_SECRET'),
         'redirect' => env('ENTRA_REDIRECT_URI', '/auth/entra/callback'),
-        'tenant' => env('ENTRA_TENANT_ID', 'common'),
+        'tenant' => env('ENTRA_TENANT_ID'),
     ],
 
 ];

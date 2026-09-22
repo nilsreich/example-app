@@ -74,12 +74,14 @@ class FeedbackReportsTable
                     ->label('In Arbeit')
                     ->icon('heroicon-o-play')
                     ->color('info')
+                    ->authorize('update')
                     ->visible(fn (FeedbackReport $record): bool => $record->status === FeedbackStatus::New)
                     ->action(fn (FeedbackReport $record): mixed => $record->transitionTo(FeedbackStatus::InProgress, actor: auth()->user())),
                 Action::make('resolve')
                     ->label('Erledigt')
                     ->icon('heroicon-o-check')
                     ->color('success')
+                    ->authorize('update')
                     ->visible(fn (FeedbackReport $record): bool => $record->status !== FeedbackStatus::Resolved)
                     ->form([
                         Textarea::make('resolution_note')

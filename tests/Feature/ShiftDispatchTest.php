@@ -12,6 +12,8 @@ use App\Models\Shift;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
 use App\Models\User;
+use App\Services\ShiftOptimizationRunner;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -44,8 +46,8 @@ class ShiftDispatchTest extends TestCase
 
     public function test_assign_proposal_assigns_employee_and_writes_ledger(): void
     {
-        $shift = Shift::factory()->create();
-        $employee = Employee::factory()->create();
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create();
 
         $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
         $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
@@ -134,8 +136,8 @@ class ShiftDispatchTest extends TestCase
 
     public function test_assign_proposal_records_ai_decision_accepted(): void
     {
-        $shift = Shift::factory()->create();
-        $employee = Employee::factory()->create();
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->qualified()->create();
 
         $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
         $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
@@ -155,7 +157,7 @@ class ShiftDispatchTest extends TestCase
 
     public function test_rollback_records_ai_decision_rejected(): void
     {
-        $shift = Shift::factory()->create();
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
         Employee::factory()->create();
 
         $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
@@ -205,5 +207,47 @@ class ShiftDispatchTest extends TestCase
             ->assertSee('aria-modal="true"', escape: false)
             ->assertSee('aria-labelledby="rollback-modal-title"', escape: false)
             ->assertSee('id="rollback-modal-title"', escape: false);
+    }
+
+    public function test_foreign_proposal_id_cannot_receive_feedback(): void
+    {
+        // Fremder Lauf einer anderen Schicht (Versand liegt außerhalb des Disponent-Scopes).
+        $otherShift = Shift::factory()->create(['required_qualifications' => [], 'department' => 'Versand']);
+        Employee::factory()->create();
+        app(ShiftOptimizationRunner::class)->run($otherShift);
+        $foreignProposalId = $otherShift->optimizations()->first()->proposals()->first()->id;
+
+        // Eigene Schicht laden, dann fremde proposal_id einschleusen.
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create();
+
+        try {
+            Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])
+                ->call('runOptimization')
+                ->call('openFeedback', $foreignProposalId, FeedbackRating::Positive->value);
+            $this->fail('Fremder Vorschlag wurde akzeptiert.');
+        } catch (ModelNotFoundException) {
+            // Erwartet: der Vorschlag gehört nicht zum geladenen Lauf dieser Schicht.
+        }
+
+        $this->assertSame(0, ShiftFeedback::where('proposal_id', $foreignProposalId)->count());
+    }
+
+    public function test_tampered_optimization_id_does_not_leak_foreign_runs(): void
+    {
+        $foreignShift = Shift::factory()->create(['required_qualifications' => [], 'department' => 'Versand']);
+        Employee::factory()->create();
+        $foreignOptimizationId = app(ShiftOptimizationRunner::class)->run($foreignShift)->id;
+
+        $ownShift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create();
+
+        // Ein fremd gesetzter optimizationId darf den fremden Lauf nicht anzeigen:
+        // loadOptimization() scoped auf die geladene Schicht (hier ohne Lauf) → null.
+        Livewire::test(ShiftDispatch::class, ['shiftId' => $ownShift->id])
+            ->call('runOptimization')
+            ->set('optimizationId', $foreignOptimizationId)
+            ->assertSee('Noch keine Vorschläge berechnet')
+            ->assertDontSee('Lauf #'.$foreignOptimizationId);
     }
 }

@@ -8,7 +8,9 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\EmployeeAvailabilityService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Self-Service "Meine Schichten": read-only Übersicht der eigenen Einsätze,
@@ -17,6 +19,8 @@ use Livewire\Component;
  */
 class MyShiftsBoard extends Component
 {
+    use WithPagination;
+
     public ?string $notice = null;
 
     public string $sickReason = 'Krankmeldung';
@@ -56,8 +60,8 @@ class MyShiftsBoard extends Component
             'shifts' => $employee
                 ? Shift::where('assigned_employee_id', $employee->id)
                     ->orderBy('starts_at')
-                    ->get()
-                : collect(),
+                    ->paginate(20)
+                : new LengthAwarePaginator([], 0, 20),
             'openShifts' => $employee
                 ? Shift::where('department', $employee->department)->where('status', ShiftStatus::Open)->count()
                 : 0,

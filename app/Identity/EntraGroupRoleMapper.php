@@ -26,9 +26,12 @@ final readonly class EntraGroupRoleMapper
      */
     public function map(array $groupObjectIds): array
     {
-        foreach ($groupObjectIds as $objectId) {
-            if (isset($this->mapping[$objectId])) {
-                return $this->mapping[$objectId];
+        // Die Config-Reihenfolge bestimmt die Präzedenz (nicht die Reihenfolge
+        // der Gruppen im ID-Token): Die erste konfigurierte Gruppe, die der
+        // Nutzer besitzt, gewinnt.
+        foreach ($this->mapping as $objectId => $mapping) {
+            if (in_array($objectId, $groupObjectIds, true)) {
+                return $mapping;
             }
         }
 
