@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Audit\Concerns\Auditable;
 use Carbon\CarbonInterface;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -30,6 +31,8 @@ use Illuminate\Support\Carbon;
 #[Fillable(['user_id', 'name', 'role', 'department', 'qualifications', 'weekly_overtime_minutes', 'last_shift_ended_at', 'is_active'])]
 class Employee extends Model
 {
+    use Auditable;
+
     /** @use HasFactory<EmployeeFactory> */
     use HasFactory;
 
