@@ -63,22 +63,20 @@ class SeedKiventroDemo extends Command
 
         // Zeiten relativ zu "jetzt", damit die Demo an jedem Tag funktioniert.
         $employees = [
-            ['Anna Berger', 'Schichtleiterin', 'Logistik', ['Schichtleitung', 'Staplerschein'], 45, $now->copy()->subHours(20)],
-            ['Ben Kramer', 'Staplerfahrer', 'Logistik', ['Staplerschein'], 300, $now->copy()->subHours(8)],
-            ['Cem Yilmaz', 'Kommissionierer', 'Logistik', [], 0, $now->copy()->subHours(40)],
-            ['Dora Lehmann', 'Staplerfahrerin', 'Logistik', ['Staplerschein', 'Ersthelfer'], 120, $now->copy()->subHours(12)],
-            ['Erik Sommer', 'Kommissionierer', 'Logistik', ['Ersthelfer'], 600, $now->copy()->subHours(18)],
-            ['Fatma Demir', 'Produktionshelferin', 'Produktion', [], 30, $now->copy()->subHours(18)],
-            ['Gregor Hahn', 'Schichtleiter', 'Produktion', ['Schichtleitung', 'Ersthelfer'], 90, $now->copy()->subHours(8)],
-            ['Hanna Vogt', 'Versandmitarbeiterin', 'Versand', ['ADR-Schein'], 0, null],
-            ['Ivan Petrov', 'Versandmitarbeiter', 'Versand', ['Staplerschein'], 200, $now->copy()->subHours(12)],
+            ['Anna Berger', 'Schichtleiterin', 'Logistik', ['Schichtleitung', 'Staplerschein'], 45, $now->copy()->subHours(20), true],
+            ['Ben Kramer', 'Staplerfahrer', 'Logistik', ['Staplerschein'], 300, $now->copy()->subHours(8), true],
+            ['Cem Yilmaz', 'Kommissionierer', 'Logistik', [], 0, $now->copy()->subHours(40), true],
+            ['Dora Lehmann', 'Staplerfahrerin', 'Logistik', ['Staplerschein', 'Ersthelfer'], 120, $now->copy()->subHours(12), true],
+            ['Erik Sommer', 'Kommissionierer', 'Logistik', ['Ersthelfer'], 600, $now->copy()->subHours(18), true],
+            ['Fatma Demir', 'Produktionshelferin', 'Produktion', [], 30, $now->copy()->subHours(18), true],
+            ['Gregor Hahn', 'Schichtleiter', 'Produktion', ['Schichtleitung', 'Ersthelfer'], 90, $now->copy()->subHours(8), true],
+            ['Hanna Vogt', 'Versandmitarbeiterin', 'Versand', ['ADR-Schein'], 0, null, true],
+            ['Ivan Petrov', 'Versandmitarbeiter', 'Versand', ['Staplerschein'], 200, $now->copy()->subHours(12), true],
             // Krankmeldung: löst das Demo-Szenario "kurzfristiger Personalausfall" aus.
             ['Julia Brandt', 'Kommissioniererin', 'Logistik', ['Staplerschein'], 60, $now->copy()->subHours(30), false],
         ];
 
-        foreach ($employees as $entry) {
-            [$name, $role, $department, $qualifications, $overtime, $lastEnded] = $entry;
-
+        foreach ($employees as [$name, $role, $department, $qualifications, $overtime, $lastEnded, $isActive]) {
             Employee::create([
                 'name' => $name,
                 'role' => $role,
@@ -86,7 +84,7 @@ class SeedKiventroDemo extends Command
                 'qualifications' => $qualifications,
                 'weekly_overtime_minutes' => $overtime,
                 'last_shift_ended_at' => $lastEnded,
-                'is_active' => $entry[6] ?? true,
+                'is_active' => $isActive,
             ]);
         }
     }

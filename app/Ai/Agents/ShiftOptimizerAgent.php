@@ -127,9 +127,7 @@ class ShiftOptimizerAgent implements Agent, AiAgent, HasStructuredOutput
         $start = hrtime(true);
         $response = $this->prompt($prompt, [], $this->provider, $this->model);
 
-        $knownIds = Collection::make($candidates)
-            ->map(fn (array $candidate) => $candidate['employee_id'])
-            ->all();
+        $knownIds = array_map(fn (array $candidate) => $candidate['employee_id'], $candidates);
 
         // Strukturierte Antworten liefert nur die StructuredAgentResponse.
         $structured = $response instanceof StructuredAgentResponse ? $response->structured : null;
@@ -204,11 +202,9 @@ class ShiftOptimizerAgent implements Agent, AiAgent, HasStructuredOutput
         } elseif ($restHours >= 11) {
             $score += 25;
             $reasons[] = sprintf('%s h Ruhezeit seit letzter Schicht (≥ 11 h Ideal).', number_format($restHours, 1, ',', '.'));
-        } elseif ($restHours >= 9) {
-            $score += 15;
-            $tradeoffs[] = sprintf('Nur %s h Ruhezeit – unter 11-h-Richtwert.', number_format($restHours, 1, ',', '.'));
         } else {
-            $score += 5;
+            // 9–10,9 h: 15 Punkte, darunter: 5 Punkte – beide unter dem 11-h-Richtwert.
+            $score += $restHours >= 9 ? 15 : 5;
             $tradeoffs[] = sprintf('Nur %s h Ruhezeit – unter 11-h-Richtwert.', number_format($restHours, 1, ',', '.'));
         }
 
