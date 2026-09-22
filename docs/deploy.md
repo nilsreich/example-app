@@ -14,8 +14,8 @@ Umgebungsvariablen** konfiguriert; es liegen keine Secrets im Repository.
 │                                                                      │
 │  Caddy (caddy:2-alpine)  ─── HTTPS 80/443 ─── app (php:8.4-fpm)     │
 │  ◦ Auto-TLS Let's Encrypt   reverse_proxy   ◦ fpm clear_env=no      │
-│  ◦ Security-Header          app:9000        ◦ opcache (validate=0)  │
-│  ◦ flush_interval -1 (SSE)                   ◦ Non-Root: www-data   │
+│  ◦ Sicherheits-Header        app:9000        ◦ opcache (validate=0)  │
+│  ◦ (kein SSE-Streaming)                      ◦ Non-Root: www-data   │
 │        │                                        │       │           │
 │        │   mysql:8.4 (DB-Daten)   worker (queue) │   redis:7-alpine │
 │        │   ◦ nur intern            ◦ gleiches     │   (Cache/Sess., │
@@ -214,8 +214,11 @@ AI_AGENT_DRIVER=mock
 APP_DOMAIN=app.b2e-template.example
 ACME_EMAIL=change-me
 # CIDR(s) des Reverse-Proxy(s), deren X-Forwarded-* vertraut wird (kommagetrennt).
-# Docker-Compose-Standardnetz: 10.0.0.0/8; bei Bare-Metal-Caddy die Server-IP.
-TRUSTED_PROXIES=10.0.0.0/8
+# WICHTIG: Muss dem tatsächlichen Docker-Compose-Bridge-Subnetz entsprechen
+# (siehe compose.prod.yaml: networks.b2e.ipam.config.subnet, Standard 172.28.0.0/24).
+# Docker vergibt ohne explizite Angabe 172.16.0.0/12-Subnetze — 10.0.0.0/8 passt NICHT.
+# Bei Bare-Metal-Caddy die Server-IP eintragen.
+TRUSTED_PROXIES=172.28.0.0/24
 
 # ---------- Sonstiges ----------
 BCRYPT_ROUNDS=12

@@ -8,7 +8,8 @@ test("homepage antwortet 200 und zeigt neutralen Template-Titel", async ({
     await expect(page).toHaveTitle(/B2E-Template/);
 });
 
-test("browser sanity check gegen example.com", async ({ page }) => {
-    await page.goto("https://example.com");
-    await expect(page.locator("h1")).toContainText("Example Domain");
+test("login page renders the neutral template brand", async ({ page }) => {
+    const response = await page.goto("/admin/login");
+    expect(response?.status()).toBe(200);
+    await expect(page.locator("body")).toContainText("B2E-Template");
 });

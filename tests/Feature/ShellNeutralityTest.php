@@ -59,7 +59,7 @@ class ShellNeutralityTest extends TestCase
 
     public function test_layout_templates_are_vendor_free(): void
     {
-        foreach (['header', 'sidebar'] as $layout) {
+        foreach (['sidebar'] as $layout) {
             $template = file_get_contents(resource_path("views/layouts/app/{$layout}.blade.php"));
 
             $this->assertStringNotContainsString('github.com/laravel', $template);

@@ -162,6 +162,12 @@ services:
 networks:
     b2e:
         driver: bridge
+        # Festes Subnetz: TRUSTED_PROXIES in .env verweist auf diesen CIDR
+        # (Caddy-IP für X-Forwarded-*). Ohne Angabe vergibt Docker zufällige
+        # 172.16.0.0/12-Subnetze, dann passt die Doku-Vorgabe nicht mehr.
+        ipam:
+            config:
+                - subnet: ${B2E_SUBNET:-172.28.0.0/24}
 
 volumes:
     app-storage:
