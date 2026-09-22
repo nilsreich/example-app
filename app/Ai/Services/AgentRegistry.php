@@ -9,6 +9,7 @@ use App\Ai\Pipelines\MockDeterministicPipeline;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 use Laravel\Ai\AnonymousAgent;
+use Throwable;
 
 /**
  * Löst AI-Agenten anhand der Konfiguration (config/ai.php -> "agents") auf.
@@ -49,7 +50,21 @@ final class AgentRegistry
             agent: $name,
         );
 
-        $result = $agent->run($prompt, $context);
+        try {
+            $result = $agent->run($prompt, $context);
+        } catch (Throwable $exception) {
+            // Keine Waise: auch ein fehlgeschlagener Lauf wird als
+            // Assistant-Nachricht festgehalten, dann weitergereicht.
+            $this->recorder->recordMessage(
+                conversation: $conversation,
+                role: 'assistant',
+                content: 'Fehler bei der Agentenausführung: '.$exception->getMessage(),
+                agent: $name,
+                meta: ['error' => true],
+            );
+
+            throw $exception;
+        }
 
         $this->recorder->recordMessage(
             conversation: $conversation,
@@ -83,7 +98,7 @@ final class AgentRegistry
         // Eigene Agent-Klasse (Docs Variante B): die Registry instanziiert den
         // Agenten über den Container – keine Template-Anpassung nötig.
         if (isset($config['class'])) {
-            return $this->resolved[$name] = app($config['class']);
+            return $this->resolved[$name] = $this->resolveAgentClass($config);
         }
 
         $driver = $config['driver'] ?? config('ai.agent_driver', 'mock');
@@ -97,6 +112,31 @@ final class AgentRegistry
         };
 
         return $this->resolved[$name] = $agent;
+    }
+
+    /**
+     * Instanziiert eine konfigurierte Agent-Klasse über den Container und
+     * reicht optionale provider/model-Werte durch (statt toter Config-Keys).
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function resolveAgentClass(array $config): AiAgent
+    {
+        $class = (string) $config['class'];
+
+        /** @var array<string, mixed> $parameters */
+        $parameters = array_filter(
+            [
+                'provider' => $config['provider'] ?? null,
+                'model' => $config['model'] ?? null,
+            ],
+            fn (mixed $value): bool => $value !== null,
+        );
+
+        /** @var AiAgent $agent */
+        $agent = app()->makeWith($class, $parameters);
+
+        return $agent;
     }
 
     /**

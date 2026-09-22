@@ -1,4 +1,4 @@
-<div class="space-y-6">
+<div class="space-y-6" @if ($awaitingResult) wire:poll.3s="refreshOptimization" @endif>
     {{-- Statusleiste --}}
     <div class="flex flex-wrap items-center gap-2 text-sm">
         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 font-medium
@@ -18,6 +18,12 @@
                 <a href="{{ url('/admin') }}" class="ml-1 font-semibold underline">Auswirkung im ROI-Dashboard ansehen →</a>
             @endif
         </div>
+    @endif
+
+    @if ($awaitingResult)
+        <p role="status" aria-live="polite" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Live-Lauf arbeitet in der Queue – das Ergebnis wird automatisch geladen …
+        </p>
     @endif
 
     {{-- Aktionen --}}

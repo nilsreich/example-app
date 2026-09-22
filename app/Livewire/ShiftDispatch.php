@@ -54,6 +54,12 @@ class ShiftDispatch extends Component
     public ?string $notice = null;
 
     /**
+     * True, während ein asynchroner Live-Lauf in der Queue arbeitet; steuert
+     * das Polling im View.
+     */
+    public bool $awaitingResult = false;
+
+    /**
      * Nach einer Zuweisung: Direktlink zur ROI-Auswirkung (nur Reporting-Rollen).
      */
     public bool $showRoiLink = false;
@@ -71,11 +77,38 @@ class ShiftDispatch extends Component
 
         Gate::authorize('update', $shift);
 
-        $optimization = $runner->run($shift);
+        $optimization = $runner->runOrQueue($shift);
+
+        if ($optimization === null) {
+            // Live-Treiber: Lauf läuft asynchron in der Queue (kein Request-Block).
+            $this->awaitingResult = true;
+            $this->notice = 'Live-Pipeline-Lauf gestartet – das Ergebnis erscheint in wenigen Sekunden.';
+
+            return;
+        }
 
         $this->optimizationId = $optimization->id;
+        $this->awaitingResult = false;
         $this->loadDrafts();
         $this->notice = 'Pipeline-Lauf abgeschlossen ('.$optimization->driver_used->label().', '.$optimization->execution_time_ms.' ms).';
+    }
+
+    /**
+     * Pollt das Ergebnis eines asynchronen (Live-)Laufs und blendet es ein,
+     * sobald die Queue den Lauf abgeschlossen hat.
+     */
+    public function refreshOptimization(): void
+    {
+        $latestId = ShiftOptimization::where('shift_id', $this->shiftId)->latest('id')->value('id');
+
+        if ($latestId === null || (int) $latestId === $this->optimizationId) {
+            return;
+        }
+
+        $this->optimizationId = (int) $latestId;
+        $this->awaitingResult = false;
+        $this->loadDrafts();
+        $this->notice = 'Live-Pipeline-Lauf abgeschlossen.';
     }
 
     public function assignProposal(int $proposalId, ShiftProposalAcceptService $acceptService): void

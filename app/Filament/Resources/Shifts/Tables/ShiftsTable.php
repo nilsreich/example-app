@@ -124,7 +124,18 @@ class ShiftsTable
                         && $record->latestOptimization === null
                         && self::canDispatch($record))
                     ->action(function (Shift $record): void {
-                        $optimization = app(ShiftOptimizationRunner::class)->run($record);
+                        $optimization = app(ShiftOptimizationRunner::class)->runOrQueue($record);
+
+                        if ($optimization === null) {
+                            Notification::make()
+                                ->title('Live-Pipeline-Lauf gestartet')
+                                ->body('Der Provider-Aufruf läuft in der Queue. Ergebnis nach Abschluss neu laden.')
+                                ->info()
+                                ->send();
+
+                            return;
+                        }
+
                         $top = $optimization->proposals->first();
                         $topName = $top?->employee->name ?? 'Kandidat';
                         $topScore = $top->score ?? 0;

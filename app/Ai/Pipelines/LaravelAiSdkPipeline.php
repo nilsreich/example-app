@@ -48,7 +48,7 @@ final class LaravelAiSdkPipeline implements AiAgent
             agent: 'laravel-ai',
             driver: AiDriver::Live,
             text: $response->text,
-            structured: $structured,
+            structured: is_array($structured) ? $structured : null,
             usage: $usage,
             executionTimeMs: $executionTimeMs,
             conversationId: $response->conversationId,
