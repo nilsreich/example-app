@@ -134,9 +134,12 @@ final class AuditLedgerTest extends TestCase
         $first = $this->record($ledger, $user);
         $second = $this->record($ledger, $user, 2);
 
-        DB::table('audit_events')
-            ->where('id', $first->id)
-            ->update(['new_state' => json_encode(['name' => 'Eve'], JSON_THROW_ON_ERROR)]);
+        // DB-Trigger gezielt umgehen (rohes Update), Kette muss den Eingriff erkennen.
+        $this->withoutAuditGuards(function () use ($first): void {
+            DB::table('audit_events')
+                ->where('id', $first->id)
+                ->update(['new_state' => json_encode(['name' => 'Eve'], JSON_THROW_ON_ERROR)]);
+        });
 
         $first->refresh();
 

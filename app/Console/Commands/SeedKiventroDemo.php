@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
@@ -16,11 +15,10 @@ use App\Models\ShiftFeedback;
 use App\Models\User;
 use App\Services\ShiftAssignmentService;
 use App\Services\ShiftOptimizationRunner;
-use Carbon\CarbonInterface;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -225,8 +223,15 @@ class SeedKiventroDemo extends Command
             [2, 'Frühschicht Logistik (KW)', 'Logistik', ['Staplerschein'], false, null],
         ];
 
+        $base = now();
+
         foreach ($entries as [$daysAgo, $title, $department, $required, $takeTop, $feedbackRating]) {
-            $day = now()->subDays($daysAgo)->startOfDay();
+            // Historische Zeitachse: now() wird auf den Schichttag fixiert, damit
+            // Modelle UND Ledger-Events (created_at steckt im Hash-Payload) von
+            // vornherein mit dem korrekten Datum entstehen – kein Nachtrag-Update,
+            // das mit dem append-only-Trigger kollidieren würde.
+            $day = $base->copy()->subDays($daysAgo)->startOfDay();
+            Date::setTestNow($day);
 
             $shift = Shift::create([
                 'title' => $title,
@@ -245,52 +250,19 @@ class SeedKiventroDemo extends Command
                 continue;
             }
 
-            $event = $assignments->assign($shift, $proposal->employee);
-
-            $models = [$optimization, $event, ...$proposals->all()];
-            $feedback = null;
+            $assignments->assign($shift, $proposal->employee);
 
             if ($feedbackRating !== null) {
-                $feedback = ShiftFeedback::create([
+                ShiftFeedback::create([
                     'proposal_id' => $proposal->id,
                     'rating' => $feedbackRating,
                     'reason_category' => $feedbackRating === FeedbackRating::Negative ? 'Regelkonflikt' : null,
                     'comment' => $feedbackRating === FeedbackRating::Negative ? 'Demo: Ruhezeit grenzwertig.' : 'Demo: Reibungslos übernommen.',
                 ]);
-                $models[] = $feedback;
             }
 
-            // Vorgeschichte auf das Schichtdatum zurückdatieren (Charts gruppieren nach Tag).
-            foreach ($models as $model) {
-                $this->backdate($model, $day);
-            }
+            Date::setTestNow();
         }
-    }
-
-    private function backdate(Model $model, CarbonInterface $date): void
-    {
-        // Audit-Events sind append-only (Modell-save() ist verboten); created_at
-        // ist reine Historie-Metadaten und gehört nicht zum Hash-Block. Für das
-        // Demo-Backdating daher die einzige bewusste Ausnahme per Query.
-        if ($model instanceof AuditEvent) {
-            AuditEvent::query()->whereKey($model->getKey())->update(['created_at' => $date]);
-
-            return;
-        }
-
-        // Ledger-Tabellen (audit_events) haben kein updated_at – hier nur reguläre Demo-Modelle.
-        $attributes = ['created_at' => $date];
-
-        if (
-            $model->getUpdatedAtColumn() !== null
-            && in_array($model->getUpdatedAtColumn(), Schema::getColumnListing($model->getTable()), true)
-        ) {
-            $attributes['updated_at'] = $date;
-        }
-
-        $model->timestamps = false;
-        $model->forceFill($attributes)->save();
-        $model->timestamps = true;
     }
 
     /**

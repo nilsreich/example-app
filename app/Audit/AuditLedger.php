@@ -50,6 +50,7 @@ final class AuditLedger
             $event->auditable_type = $auditableType;
             $event->auditable_id = $auditableId;
             $event->actor_user_id = $actor?->getKey();
+            $event->actor_label = $actor?->email;
             $event->event_type = $eventType;
             $event->previous_state = $previousState;
             $event->new_state = $newState;
@@ -58,6 +59,10 @@ final class AuditLedger
             $event->ip = $ip;
             $event->user_agent = $userAgent;
             $event->prev_hash = $prevHash;
+            // created_at fließt in den Hash ein und muss daher vor der
+            // Hash-Berechnung feststehen – sekundengenau, damit der
+            // DB-Roundtrip (ohne Mikrosekunden) denselben Hash ergibt.
+            $event->created_at = now()->startOfSecond();
             $event->hash = HashChain::hash($prevHash, $event->blockPayload());
             $event->save();
 

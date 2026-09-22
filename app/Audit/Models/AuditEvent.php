@@ -6,11 +6,11 @@ use App\Audit\Enums\AuditEventType;
 use App\Audit\Enums\AuditSource;
 use App\Audit\Support\HashChain;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Support\Carbon;
 
 /**
  * Generischer, append-only Audit-Eintrag (GoBD-Ledger).
@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $auditable_type
  * @property int|null $auditable_id
  * @property int|null $actor_user_id
+ * @property string|null $actor_label
  * @property AuditEventType $event_type
  * @property array<string, mixed>|null $previous_state
  * @property array<string, mixed>|null $new_state
@@ -28,9 +29,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $user_agent
  * @property string|null $prev_hash
  * @property string $hash
- * @property Carbon|null $created_at
+ * @property CarbonImmutable|null $created_at
  */
-#[Fillable(['auditable_type', 'auditable_id', 'actor_user_id', 'event_type', 'previous_state', 'new_state', 'version', 'source', 'ip', 'user_agent', 'prev_hash', 'hash'])]
+#[Fillable(['auditable_type', 'auditable_id', 'actor_user_id', 'actor_label', 'event_type', 'previous_state', 'new_state', 'version', 'source', 'ip', 'user_agent', 'prev_hash', 'hash'])]
 class AuditEvent extends Model
 {
     public const CREATED_AT = 'created_at';
@@ -87,7 +88,8 @@ class AuditEvent extends Model
     }
 
     /**
-     * Kanonischer Hash-Eingang für diesen Block (ohne prev_hash/hash/id/created_at).
+     * Kanonischer Hash-Eingang für diesen Block (ohne prev_hash/hash/id).
+     * Enthält created_at, damit auch der Zeitstempel manipulationsfest ist.
      * Muss zur Laufzeit stabil bleiben, sonst brechen bestehende Ketten.
      *
      * @return array<string, mixed>
@@ -97,7 +99,7 @@ class AuditEvent extends Model
         return [
             'auditable_type' => $this->auditable_type,
             'auditable_id' => $this->auditable_id,
-            'actor_user_id' => $this->actor_user_id,
+            'actor_label' => $this->actor_label,
             'event_type' => $this->event_type->value,
             'previous_state' => $this->previous_state ?? [],
             'new_state' => $this->new_state ?? [],
@@ -105,6 +107,7 @@ class AuditEvent extends Model
             'source' => $this->source->value,
             'ip' => $this->ip,
             'user_agent' => $this->user_agent,
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 

@@ -61,7 +61,7 @@ final class AuditExporterTest extends TestCase
 
         $lines = explode(PHP_EOL, trim($csv));
         $this->assertSame(
-            'id,created_at,event_type,source,actor_user_id,auditable_type,auditable_id,version,ip,user_agent,previous_state,new_state,prev_hash,hash',
+            'id,created_at,event_type,source,actor_user_id,actor_label,auditable_type,auditable_id,version,ip,user_agent,previous_state,new_state,prev_hash,hash',
             $lines[0],
         );
         // Neuestes Event zuerst (Sortierung id desc).
@@ -85,7 +85,7 @@ final class AuditExporterTest extends TestCase
         $lines = explode("\n", trim($csv));
         $row = str_getcsv($lines[1]);
         $this->assertSame('updated', $row[2]);
-        $this->assertSame(json_encode(['name' => 'Mia, "die Zauberin"']), $row[10]);
+        $this->assertSame(json_encode(['name' => 'Mia, "die Zauberin"']), $row[11]);
     }
 
     public function test_json_contains_events_with_valid_chain_flag(): void
@@ -109,8 +109,11 @@ final class AuditExporterTest extends TestCase
         $first = $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
         $this->record(AuditEventType::Updated, ['name' => 'Mia'], ['name' => 'Milo'], $user);
 
-        // Guard umgehen (rohes DB-Update), Kette muss den Eingriff erkennen.
-        DB::table('audit_events')->where('id', $first->id)->update(['new_state' => json_encode(['name' => 'Betrüger'])]);
+        // DB-Trigger gezielt umgehen (rohes Update), Kette muss den Eingriff erkennen.
+        $this->withoutAuditGuards(function () use ($first): void {
+            DB::table('audit_events')->where('id', $first->id)->update(['new_state' => json_encode(['name' => 'Betrüger'])]);
+        });
+
         $this->record(AuditEventType::StatusChanged, ['status' => 'x'], ['status' => 'y'], $user);
 
         $decoded = json_decode(app(AuditExporter::class)->json(), true, flags: JSON_THROW_ON_ERROR);
@@ -125,7 +128,7 @@ final class AuditExporterTest extends TestCase
     public function test_json_flags_followup_block_when_middle_block_hash_was_replaced(): void
     {
         $user = $this->actor();
-        $first = $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
+        $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
         $middle = $this->record(AuditEventType::Updated, ['name' => 'Mia'], ['name' => 'Milo'], $user);
         $this->record(AuditEventType::StatusChanged, ['status' => 'x'], ['status' => 'y'], $user);
 
@@ -134,12 +137,14 @@ final class AuditExporterTest extends TestCase
         $middle->new_state = ['name' => 'Betrüger'];
         $replacedHash = HashChain::hash($middle->prev_hash, $middle->blockPayload());
 
-        DB::table('audit_events')
-            ->where('id', $middle->id)
-            ->update([
-                'new_state' => json_encode(['name' => 'Betrüger']),
-                'hash' => $replacedHash,
-            ]);
+        $this->withoutAuditGuards(function () use ($middle, $replacedHash): void {
+            DB::table('audit_events')
+                ->where('id', $middle->id)
+                ->update([
+                    'new_state' => json_encode(['name' => 'Betrüger']),
+                    'hash' => $replacedHash,
+                ]);
+        });
 
         $decoded = json_decode(app(AuditExporter::class)->json(), true, flags: JSON_THROW_ON_ERROR);
 
@@ -149,6 +154,46 @@ final class AuditExporterTest extends TestCase
         $this->assertFalse($decoded['events'][0]['chain_valid']);
         $this->assertTrue($decoded['events'][1]['chain_valid']);
         $this->assertTrue($decoded['events'][2]['chain_valid']);
+    }
+
+    public function test_json_flags_reparented_block_with_consistent_hash(): void
+    {
+        $user = $this->actor();
+        $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
+        $middle = $this->record(AuditEventType::Updated, ['name' => 'Mia'], ['name' => 'Milo'], $user);
+        $this->record(AuditEventType::StatusChanged, ['status' => 'x'], ['status' => 'y'], $user);
+
+        // Re-Parenting: prev_hash auf null setzen und den Hash dazu konsistent
+        // neu berechnen. Der Recompute allein wäre gültig – die strenge
+        // Nachbarschaftsprüfung muss den Eingriff dennoch erkennen.
+        $middle->prev_hash = null;
+
+        $this->withoutAuditGuards(function () use ($middle): void {
+            DB::table('audit_events')->where('id', $middle->id)->update([
+                'prev_hash' => null,
+                'hash' => HashChain::hash(null, $middle->blockPayload()),
+            ]);
+        });
+
+        $decoded = json_decode(app(AuditExporter::class)->json(), true, flags: JSON_THROW_ON_ERROR);
+
+        // events[1] = Updated (re-parented): Recompute ok, Nachbarschaft gebrochen.
+        $this->assertFalse($decoded['events'][1]['chain_valid']);
+    }
+
+    public function test_json_flags_tampered_timestamp(): void
+    {
+        $user = $this->actor();
+        $event = $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
+
+        // created_at ist Teil des Hash-Payloads: eine Änderung bricht die Kette.
+        $this->withoutAuditGuards(function () use ($event): void {
+            DB::table('audit_events')->where('id', $event->id)->update(['created_at' => '2020-01-01 00:00:00']);
+        });
+
+        $decoded = json_decode(app(AuditExporter::class)->json(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertFalse($decoded['events'][0]['chain_valid']);
     }
 
     public function test_filters_by_event_type(): void
@@ -188,7 +233,9 @@ final class AuditExporterTest extends TestCase
         $old = $this->record(AuditEventType::Created, [], ['name' => 'Mia'], $user);
         $this->record(AuditEventType::Updated, ['name' => 'Mia'], ['name' => 'Milo'], $user);
 
-        DB::table('audit_events')->where('id', $old->id)->update(['created_at' => '2026-01-15 10:00:00']);
+        $this->withoutAuditGuards(function () use ($old): void {
+            DB::table('audit_events')->where('id', $old->id)->update(['created_at' => '2026-01-15 10:00:00']);
+        });
 
         $exporter = app(AuditExporter::class);
 

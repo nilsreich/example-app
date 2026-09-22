@@ -18,7 +18,7 @@ final class AuditExporter
 {
     /** @var list<string> */
     private const CSV_HEADERS = [
-        'id', 'created_at', 'event_type', 'source', 'actor_user_id',
+        'id', 'created_at', 'event_type', 'source', 'actor_user_id', 'actor_label',
         'auditable_type', 'auditable_id', 'version', 'ip', 'user_agent',
         'previous_state', 'new_state', 'prev_hash', 'hash',
     ];
@@ -142,6 +142,7 @@ final class AuditExporter
             'event_type' => $event->event_type->value,
             'source' => $event->source->value,
             'actor_user_id' => $event->actor_user_id,
+            'actor_label' => $event->actor_label,
             'auditable_type' => $event->auditable_type,
             'auditable_id' => $event->auditable_id,
             'version' => $event->version,
