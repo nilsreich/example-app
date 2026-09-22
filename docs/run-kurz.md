@@ -9,15 +9,15 @@ Referenz-Domäne „demo-shifts".
 
 ## Voraussetzungen
 
-- PHP ≥ 8.2 (mit `pdo_sqlite`, `mbstring`, `openssl`) und Composer
+- PHP ≥ 8.3 (mit `pdo_sqlite`, `mbstring`, `openssl`) und Composer
 - Node.js ≥ 20 und npm
-- Checkout des Repos (Branch `feature/schichtplanung-review` — Stand PR #1)
+- Checkout des Repos (Branch `main`)
 
 ## 1. Einmaliges Setup
 
 ```bash
 composer install
-npm install
+npm ci
 cp .env.example .env
 php artisan key:generate
 # Falls SQLite (Standard): Datenbankdatei anlegen
