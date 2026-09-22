@@ -26,10 +26,12 @@ final class EntraGroupRoleMapperTest extends TestCase
             'group-b' => ['role' => 'bereichsleiter', 'department' => 'Logistik'],
         ]);
 
+        // Die Token-Reihenfolge ist irrelevant: Die erste in der Config
+        // definierte Gruppe gewinnt (deterministische Präzedenz).
         $result = $mapper->map(['group-x', 'group-b', 'group-a']);
 
-        $this->assertSame('bereichsleiter', $result['role']);
-        $this->assertSame('Logistik', $result['department']);
+        $this->assertSame('web-admin', $result['role']);
+        $this->assertSame('IT', $result['department']);
     }
 
     public function test_denies_when_no_group_matches_and_no_fallback(): void

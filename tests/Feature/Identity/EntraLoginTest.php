@@ -17,6 +17,8 @@ class EntraLoginTest extends TestCase
     {
         parent::setUp();
 
+        config()->set('entra.enabled', true);
+
         config()->set('services.microsoft', [
             'client_id' => 'test-client-id',
             'client_secret' => 'test-client-secret',
@@ -83,6 +85,25 @@ class EntraLoginTest extends TestCase
 
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['entra_object_id' => 'entra-object-id-123']);
+    }
+
+    public function test_routes_are_disabled_when_entra_is_disabled(): void
+    {
+        config()->set('entra.enabled', false);
+
+        $this->get('/auth/entra')->assertNotFound();
+        $this->get('/auth/entra/callback')->assertNotFound();
+    }
+
+    public function test_callback_returns_to_login_when_provider_fails(): void
+    {
+        Socialite::shouldReceive('driver->user')->andThrow(new \RuntimeException('access_denied'));
+
+        $this->get('/auth/entra/callback')
+            ->assertRedirect(route('login', absolute: false))
+            ->assertSessionHas('error');
+
+        $this->assertGuest();
     }
 
     private function fakeEntraUser(string $email = 'max@example.test', array $groups = []): SocialiteUser

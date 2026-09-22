@@ -17,6 +17,8 @@ class EntraAuditEventsTest extends TestCase
     {
         parent::setUp();
 
+        config()->set('entra.enabled', true);
+
         config()->set('services.microsoft', [
             'client_id' => 'test-client-id',
             'client_secret' => 'test-client-secret',
@@ -132,6 +134,31 @@ class EntraAuditEventsTest extends TestCase
         ]);
         // Bindung bleibt unverändert.
         $this->assertSame('andere-object-id', $user->fresh()->entra_object_id);
+    }
+
+    public function test_unchanged_role_and_department_record_no_change_events(): void
+    {
+        // Regression: getRawOriginal statt getOriginal – sonst erzeugt der
+        // Enum-Cast bei jedem SSO-Login ein falsches RoleChanged-Event.
+        $user = User::factory()->create([
+            'entra_object_id' => 'entra-object-id-123',
+            'email' => 'max@example.test',
+            'role' => UserRole::Nutzer,
+            'department' => 'IT',
+        ]);
+        Socialite::fake('microsoft', $this->fakeEntraUser());
+
+        $this->get('/auth/entra/callback')
+            ->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertDatabaseMissing('audit_events', [
+            'event_type' => 'role_changed',
+            'actor_user_id' => $user->id,
+        ]);
+        $this->assertDatabaseMissing('audit_events', [
+            'event_type' => 'department_changed',
+            'actor_user_id' => $user->id,
+        ]);
     }
 
     public function test_logout_records_logout_event(): void

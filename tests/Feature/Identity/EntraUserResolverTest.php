@@ -105,4 +105,29 @@ class EntraUserResolverTest extends TestCase
         $this->assertNull($user);
         $this->assertDatabaseMissing('users', ['entra_object_id' => 'obj-2']);
     }
+
+    public function test_group_mapping_uses_config_order_not_token_order(): void
+    {
+        $resolver = $this->resolver([
+            'group-high' => ['role' => 'web-admin', 'department' => 'IT'],
+            'group-low' => ['role' => 'nutzer', 'department' => null],
+        ]);
+
+        // Token-Reihenfolge niedrig→hoch, Config-Reihenfolge hoch→niedrig:
+        // Die erste konfigurierte Gruppe gewinnt (deterministische Präzedenz).
+        $user = $resolver->resolve($this->entraUser('obj-3', 'max@example.test'), ['group-low', 'group-high']);
+
+        $this->assertNotNull($user);
+        $this->assertSame(UserRole::WebAdmin, $user->role);
+    }
+
+    public function test_denies_user_when_mapped_role_is_invalid(): void
+    {
+        $resolver = $this->resolver(['group-a' => ['role' => 'kein-gueltiger-wert', 'department' => null]]);
+
+        $user = $resolver->resolve($this->entraUser('obj-4', 'max@example.test'), ['group-a']);
+
+        $this->assertNull($user);
+        $this->assertDatabaseMissing('users', ['entra_object_id' => 'obj-4']);
+    }
 }

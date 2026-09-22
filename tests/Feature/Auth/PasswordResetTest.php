@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Fortify\Features;
 use Tests\TestCase;
@@ -77,5 +78,32 @@ class PasswordResetTest extends TestCase
 
             return true;
         });
+    }
+
+    public function test_sso_bound_user_cannot_reset_password(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'entra_object_id' => 'entra-object-123',
+            'password' => 'original-password',
+        ]);
+
+        $this->post(route('password.request'), ['email' => $user->email]);
+
+        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+            $response = $this->post(route('password.update'), [
+                'token' => $notification->token,
+                'email' => $user->email,
+                'password' => 'neues-passwort',
+                'password_confirmation' => 'neues-passwort',
+            ]);
+
+            $response->assertSessionHasErrors('email');
+
+            return true;
+        });
+
+        $this->assertTrue(Hash::check('original-password', $user->fresh()->password));
     }
 }

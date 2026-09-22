@@ -1,9 +1,10 @@
 <?php
 
 use App\Identity\Http\Controllers\EntraAuthController;
+use App\Identity\Http\Middleware\EnsureEntraEnabled;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('guest')->group(function (): void {
+Route::middleware(['guest', EnsureEntraEnabled::class])->group(function (): void {
     Route::get('/auth/entra', [EntraAuthController::class, 'redirect'])
         ->name('entra.redirect');
 
