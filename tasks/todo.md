@@ -87,9 +87,10 @@
 
 ## Phase 7: Template-Hülle (neutral)
 
-- [ ] T18: Hülle neutralisieren (APP_NAME/Branding, Panel-Brand, welcome/auth-Views neutral; Demo als Referenz markiert)
+- [x] T18: Hülle neutralisieren (APP_NAME/Branding, Panel-Brand, welcome/auth-Views neutral; Demo als Referenz markiert)
     - Acceptance: frische Instanz = neutrale Hülle; Demo-Domäne erreichbar gekennzeichnet
     - Verify: `composer test`; Sichtprüfung
+    - ✔ APP_NAME="B2E-Template" (.env.example + config-Default); Dashboard-Head „Dispatch-Cockpit" ohne Marke; Login-Hint entfernt (AdminPanelProvider-Hook + View gelöscht); Login-/Welcome neutral; Demo-Zugänge nur noch im Demo-Szenario-Card + docs/demo.md; ShellNeutralityTest (4) + DashboardTest/FilamentPagesTest angepasst
 
 **Checkpoint 7 (Hülle):** neutrale Hülle; alle Tests grün.
 

@@ -167,8 +167,9 @@ Die Schichtplanungs-Demo (Laravel + Filament + Laravel AI SDK) wird zu einem wie
 
 ### Phase 7: Template-Hülle (neutral)
 
-- [ ] **T18: Hülle neutralisieren**
+- [x] **T18: Hülle neutralisieren**
     - `APP_NAME`/Branding, Filament-Panel-Brand, `welcome`- und `auth`-Views auf neutrale Platzhalter („B2E-Template"); Demo-Domäne als Referenz klar gekennzeichnet (Doku); kein kiventro-/Schicht-Wording in der Hülle, Demo-Wording nur noch im demo-shifts-Kontext.
+    - ✔ Umgesetzt: .env.example + config default = B2E-Template; Dashboard-Head neutral; Login-Hint (auth) entfernt; docs/demo.md als Referenz-Kennzeichnung (CAPABILITY-MAP-Verknüpfung); ShellNeutralityTest belegt neutrale Hülle (Login/Welcome/Dashboard/APP_NAME-Vorlage).
     - Acceptance: Frisch geklontes Template zeigt neutrale Hülle; Demo-Domäne bleibt über Rollen-/Navigationskenne erreichbar.
     - Verify: `composer test`; Sichtprüfung welcome/auth/Panel-Brand.
     - Files: `config/app.php`, `.env.example`, `app/Providers/Filament/AdminPanelProvider.php`, `resources/views/{welcome,auth,components}/*`, `docs/*`.

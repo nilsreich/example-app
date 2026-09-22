@@ -9,7 +9,7 @@ Freigegeben: 2026-09-22. Index für die Modul-Specs (`SPEC-*.md`).
 | `feedback`    | In-App-Feedback (Widget + Element-Picker + Screenshot)                                                    | `identity`                             | in Demo fertig → extrahieren    |
 | `ai`          | Laravel-AI-SDK-Erweiterungspunkt (Provider-Abstraktion, Agent-Konversationen), Demo-Use-Case als Beispiel | `identity`                             | Basis, Erweiterungspunkt fehlt  |
 | `deploy`      | Produktions-Docker-Kit (EU): Dockerfile, Compose prod, Env-Vorlagen, Ein-Befehl-Deploy + CI               | — (infrastrukturell, parallel möglich) | fehlt                           |
-| `demo-shifts` | Schichtplanung als Referenz-Domäne, die alle Module durchspielt                                           | `identity`, `audit`, `ai`              | in Demo vorhanden → anpassen    |
+| `demo-shifts` | Schichtplanung als Referenz-Domäne, die alle Module durchspielt (Details: [docs/demo.md](docs/demo.md))   | `identity`, `audit`, `ai`              | in Demo vorhanden → anpassen    |
 
 Build-Reihenfolge: `identity` → `audit` → (`feedback` ‖ `ai`) → `demo-shifts` als Referenz; `deploy` läuft orthogonal dazu.
 
