@@ -19,7 +19,7 @@ Die Schichtplanungs-Demo (Laravel + Filament + Laravel AI SDK) wird zu einem wie
 
 ### Phase 1: audit (Foundation)
 
-- [ ] **T1: `audit_events`-Schema + Hash-Kette**
+- [x] **T1: `audit_events`-Schema + Hash-Kette**
     - Migration `create_audit_events_table` (morph `auditable`, `actor_user_id`, `event_type`, `previous_state`/`new_state` json, `version`, `prev_hash`, `hash`, `source`(web|ai|cli), ip, user_agent, nur `created_at`; Indizes actor/auditable/created_at).
     - `App\Audit\Models\AuditEvent` (immutable: kein updated_at, kein Mass-Restore), `App\Audit\Enums\AuditEventType`, pure `App\Audit\Support\HashChain` (sha256, kanonisches JSON).
     - Acceptance: Kette gültig; Einzeländerung bricht Kette; Write-Only-Pfad.
@@ -27,88 +27,37 @@ Die Schichtplanungs-Demo (Laravel + Filament + Laravel AI SDK) wird zu einem wie
     - Files: `database/migrations/*`, `app/Audit/{Models,Enums,Support}/*`, Tests.
     - Deps: None. Size: M.
 
-- [ ] **T2: AuditLedger + Auditable-Trait + Append-only-Guard**
-    - `App\Audit\AuditLedger::record(...)` (Actor/Auditable/Typ/Vorher-Nachher/Source, Versionierung lockForUpdate, prev_hash-Fortsetzung), `rollback(...)` = neues verkettetes Event, `query()`-API für Filter (Actor/Auditable/Zeitraum/Typ).
-    - `App\Audit\Concerns\Auditable` (Verbund morphed einfügen), Guard: Update/Delete auf `audit_events` verhindert (Model-Guard, kein Weg im Code).
-    - Acceptance: Ledger schreibt Ketten-korrekt; Rollback verkettet; Update/Delete-Versuch scheitert; Filter/Query funktioniert.
-    - Verify: `php artisan test --filter=Audit`; `composer test`.
-    - Files: `app/Audit/*`, `database/migrations/*`, Tests.
-    - Deps: T1. Size: M.
+- [x] **T2: AuditLedger + Auditable-Trait + Append-only-Guard** - `App\Audit\AuditLedger::record(...)` (Actor/Auditable/Typ/Vorher-Nachher/Source, Versionierung lockForUpdate, prev_hash-Fortsetzung), `rollback(...)` = neues verkettetes Event, `query()`-API für Filter (Actor/Auditable/Zeitraum/Typ). - `App\Audit\Concerns\Auditable` (Verbund morphed einfügen), Guard: Update/Delete auf `audit_events` verhindert (Model-Guard, kein Weg im Code). - Acceptance: Ledger schreibt Ketten-korrekt; Rollback verkettet; Update/Delete-Versuch scheitert; Filter/Query funktioniert. - Verify: `php artisan test --filter=Audit`; `composer test`. - Files: `app/Audit/*`, `database/migrations/*`, Tests. - Deps: T1. Size: M.
 
-- [ ] **T3: Audit-Export (CSV/JSON) + Filament-Ansicht**
-    - `App\Audit\Http\Controllers\AuditExportController` (kann CSV/JSON, Zeitraum/Actor/Modul-Filter), Policy (nur audit-berechtigte Rollen), Filament-Page zur Ansicht/Export.
-    - Acceptance: Export policy-geschützt, Format korrekt, Filter greifen.
-    - Verify: `php artisan test --filter=Audit`; `composer test`.
-    - Files: `app/Audit/Http/*`, `app/Audit/Filament/*`, `app/Audit/Policies/*`, Tests.
-    - Deps: T2. Size: M.
+- [x] **T3: Audit-Export (CSV/JSON) + Filament-Ansicht** - `App\Audit\Http\Controllers\AuditExportController` (kann CSV/JSON, Zeitraum/Actor/Modul-Filter), Policy (nur audit-berechtigte Rollen), Filament-Page zur Ansicht/Export. - Acceptance: Export policy-geschützt, Format korrekt, Filter greifen. - Verify: `php artisan test --filter=Audit`; `composer test`. - Files: `app/Audit/Http/*`, `app/Audit/Filament/*`, `app/Audit/Policies/*`, Tests. - Deps: T2. Size: M.
 
 **Checkpoint 1 (audit):** `composer test` grün; Manipulationstest zeigt Kettenbruch; keine andere Audit-Implementierung mehr im Code (außer Demo, die T13-T14 ersetzt). Review mit Nutzer.
 
 ### Phase 2: identity
 
-- [ ] **T4: Entra-SSO-Grundgerüst**
-    - `config/entra.php` (tenant, client_id/secret, mapping, scope), Socialite microsoft-Provider einrichten, `routes/entra.php` (redirect/callback, throttle), `app/Identity/Http/Controllers/EntraAuthController.php`.
-    - Acceptance: Redirect zeigt auf MS-Login (simuliert), Callback-Route erreichbar; lokaler Login unverändert.
-    - Verify: `php artisan test --filter=Identity`; `composer test`.
-    - Files: `config/entra.php`, `routes/entra.php`, `app/Identity/Http/*`, `composer.json`.
-    - Deps: None (parallel zu Phase 1 möglich). Size: S/M.
+- [x] **T4: Entra-SSO-Grundgerüst** - `config/entra.php` (tenant, client_id/secret, mapping, scope), Socialite microsoft-Provider einrichten, `routes/entra.php` (redirect/callback, throttle), `app/Identity/Http/Controllers/EntraAuthController.php`. - Acceptance: Redirect zeigt auf MS-Login (simuliert), Callback-Route erreichbar; lokaler Login unverändert. - Verify: `php artisan test --filter=Identity`; `composer test`. - Files: `config/entra.php`, `routes/entra.php`, `app/Identity/Http/*`, `composer.json`. - Deps: None (parallel zu Phase 1 möglich). Size: S/M.
 
-- [ ] **T5: Provisioning + Mapping**
-    - Migration `add_entra_object_id_to_users` (unique, nullable), `App\Identity\EntraUserResolver` (Socialite-User → finde/erstelle User via `entra_object_id`, sonst email, immer aktualisieren), `App\Identity\EntraGroupRoleMapper` (Group-ObjectIds → role/department aus config; kein Default-Rollen-Verfall: ohne Treffer → Zugriff verweigert außer konfigurierter Fallback).
-    - Acceptance: Neu-Provisioning, Bestand-Match über Email-Wechsel, Mapping korrekt, Ablehnung ohne Berechtigung.
-    - Verify: `php artisan test --filter=Identity`; `composer test` (Socialite-Fake).
-    - Files: `database/migrations/*`, `app/Identity/*`, `config/entra.php`, Tests.
-    - Deps: T4. Size: M.
+- [x] **T5: Provisioning + Mapping** - Migration `add_entra_object_id_to_users` (unique, nullable), `App\Identity\EntraUserResolver` (Socialite-User → finde/erstelle User via `entra_object_id`, sonst email, immer aktualisieren), `App\Identity\EntraGroupRoleMapper` (Group-ObjectIds → role/department aus config; kein Default-Rollen-Verfall: ohne Treffer → Zugriff verweigert außer konfigurierter Fallback). - Acceptance: Neu-Provisioning, Bestand-Match über Email-Wechsel, Mapping korrekt, Ablehnung ohne Berechtigung. - Verify: `php artisan test --filter=Identity`; `composer test` (Socialite-Fake). - Files: `database/migrations/*`, `app/Identity/*`, `config/entra.php`, Tests. - Deps: T4. Size: M.
 
-- [ ] **T6: Audit-Anbindung + Hybrid-Absicherung + Rollen-Default**
-    - SSO-Events (Login/Logout/Provisioning/Fehler) über `AuditLedger`; Account-Update nach Erstlogin; Rollen-Default-Set (4 Rollen) als Config-Abschnitt in `config/entra.php` bzw. `b2e.php`; Tests: lokaler Login/2FA/Passkeys weiter grün, Entra-Fake-Pfad grün.
-    - Acceptance: SSO-Login hinterlässt Audit-Events; lokaler Login unberührt; Rollen-Config vorhanden.
-    - Verify: `php artisan test --filter=Identity`; `composer test`.
-    - Files: `app/Identity/*`, `app/Audit/*` (falls Anpassung), `config/*`, Tests.
-    - Deps: T5, T2. Size: M.
+- [x] **T6: Audit-Anbindung + Hybrid-Absicherung + Rollen-Default** - SSO-Events (Login/Logout/Provisioning/Fehler) über `AuditLedger`; Account-Update nach Erstlogin; Rollen-Default-Set (4 Rollen) als Config-Abschnitt in `config/entra.php` bzw. `b2e.php`; Tests: lokaler Login/2FA/Passkeys weiter grün, Entra-Fake-Pfad grün. - Acceptance: SSO-Login hinterlässt Audit-Events; lokaler Login unberührt; Rollen-Config vorhanden. - Verify: `php artisan test --filter=Identity`; `composer test`. - Files: `app/Identity/*`, `app/Audit/*` (falls Anpassung), `config/*`, Tests. - Deps: T5, T2. Size: M.
 
 **Checkpoint 2 (identity):** `composer test` grün; SSO-Pfad simuliert testbar; lokaler Login + 2FA + Passkeys grün; Audit-Events für Login nachweisbar. Review mit Nutzer.
 
 ### Phase 3: feedback (parallel zu ai)
 
-- [ ] **T7: Domain-Extraktion nach `app/Feedback`**
-    - Verschiebe `FeedbackReport` (Model), Enums (`FeedbackCategory/Rating/Status`), Controller (`FeedbackReportController`/`FeedbackScreenshotController`), Policy nach `app/Feedback/...`, `config/feedback.php` (enabled, categories), Routen/Namespace-Referenzen aktualisieren; Widget-Bindung (Render-Hook `BODY_END`) aufs Modul; Verhalten unverändert.
-    - Acceptance: Bestehende Feedback-Tests laufen unter neuem Namespace; Widget + Screenshot-Route funktionieren; Modul abschaltbar.
-    - Verify: `php artisan test --filter=Feedback`; `composer test`; e2e-Smoke.
-    - Files: `app/Feedback/*`, `config/feedback.php`, `app/Providers/*`, `routes/web.php`, Views, Tests.
-    - Deps: None (parallel zu ai möglich). Size: L (→ ggf. in zwei Slices teilen bei Umsetzung).
+- [x] **T7: Domain-Extraktion nach `app/Feedback`** - Verschiebe `FeedbackReport` (Model), Enums (`FeedbackCategory/Rating/Status`), Controller (`FeedbackReportController`/`FeedbackScreenshotController`), Policy nach `app/Feedback/...`, `config/feedback.php` (enabled, categories), Routen/Namespace-Referenzen aktualisieren; Widget-Bindung (Render-Hook `BODY_END`) aufs Modul; Verhalten unverändert. - Acceptance: Bestehende Feedback-Tests laufen unter neuem Namespace; Widget + Screenshot-Route funktionieren; Modul abschaltbar. - Verify: `php artisan test --filter=Feedback`; `composer test`; e2e-Smoke. - Files: `app/Feedback/*`, `config/feedback.php`, `app/Providers/*`, `routes/web.php`, Views, Tests. - Deps: None (parallel zu ai möglich). Size: L (→ ggf. in zwei Slices teilen bei Umsetzung).
 
-- [ ] **T8: Triage + Aufbewahrung + Audit**
-    - Filament-Triage (bestehende Resource auf Modul umziehen), Löschfunktion für Report+Screenshot im Triage (DSGVO), Aufbewahrungslauf (≥12 Monate markierbar), Statusänderungen (neu→in Arbeit→gelöst) über `AuditLedger`.
-    - Acceptance: Statuswechsel erscheint im Audit; Löschung entfernt Screenshot + Report; Frist-Lauf funktioniert.
-    - Verify: `php artisan test --filter=Feedback`; `composer test`.
-    - Files: `app/Feedback/Filament/*`, `app/Feedback/*`, `app/Audit/*` (Nutzung), Tests.
-    - Deps: T7, T2. Size: M.
+- [x] **T8: Triage + Aufbewahrung + Audit** - Filament-Triage (bestehende Resource auf Modul umziehen), Löschfunktion für Report+Screenshot im Triage (DSGVO), Aufbewahrungslauf (≥12 Monate markierbar), Statusänderungen (neu→in Arbeit→gelöst) über `AuditLedger`. - Acceptance: Statuswechsel erscheint im Audit; Löschung entfernt Screenshot + Report; Frist-Lauf funktioniert. - Verify: `php artisan test --filter=Feedback`; `composer test`. - Files: `app/Feedback/Filament/*`, `app/Feedback/*`, `app/Audit/*` (Nutzung), Tests. - Deps: T7, T2. Size: M.
 
 **Checkpoint 3 (feedback):** `composer test` grün; e2e-Feedback-Smoke grün; Triage-Änderungen im Audit; Modul abschaltbar.
 
 ### Phase 4: ai (parallel zu feedback)
 
-- [ ] **T9: AiAgent-Contract + Registry + Fake**
-    - `App\Ai\Contracts\AiAgent` (generischer Vertrag analog `ShiftOptimizerPipelineInterface`), `App\Ai\Services\AgentRegistry` (Agenten per Config auflösen), `App\Ai\Pipelines/MockDeterministicPipeline` + `LaravelAiSdkPipeline` als Referenz-Implementierungen; Driver-Umschaltung über Config (statt `Setting::aiPipelineDriver()`-Guard), Default = Mock/Fake ohne Keys.
-    - Acceptance: Registry löst Agenten konfig-gesteuert; Fake deterministisch; kein Test braucht Keys.
-    - Verify: `php artisan test --filter=Ai`; `composer test`.
-    - Files: `app/Ai/{Contracts,Services,Pipelines}/*`, `config/ai.php`, `app/Providers/*`, Tests.
-    - Deps: None. Size: M.
+- [x] **T9: AiAgent-Contract + Registry + Fake** - `App\Ai\Contracts\AiAgent` (generischer Vertrag analog `ShiftOptimizerPipelineInterface`), `App\Ai\Services\AgentRegistry` (Agenten per Config auflösen), `App\Ai\Pipelines/MockDeterministicPipeline` + `LaravelAiSdkPipeline` als Referenz-Implementierungen; Driver-Umschaltung über Config (statt `Setting::aiPipelineDriver()`-Guard), Default = Mock/Fake ohne Keys. - Acceptance: Registry löst Agenten konfig-gesteuert; Fake deterministisch; kein Test braucht Keys. - Verify: `php artisan test --filter=Ai`; `composer test`. - Files: `app/Ai/{Contracts,Services,Pipelines}/*`, `config/ai.php`, `app/Providers/*`, Tests. - Deps: None. Size: M.
 
-- [ ] **T10: AgentConversation-Wrapper + Konversation sm Parkour aus Laravel-AI-Tabellen**
-    - Schlanke Modelle (`App\Ai\Models\AgentConversation`, `AgentMessage`) auf den Laravel-AI-Tabellen (`agent_conversations`/`agent_conversation_messages`); Registry kann Konversation je Agent/Prozess anlegen; Anbindung in Pipeline-Ausführung.
-    - Acceptance: Konversation + Messages werden bei Agent-Lauf persistiert (Fake).
-    - Verify: `php artisan test --filter=Ai`; `composer test`.
-    - Files: `app/Ai/Models/*`, `app/Ai/Services/AgentRegistry.php`, Tests.
-    - Deps: T9. Size: S/M.
+- [x] **T10: AgentConversation-Wrapper + Konversation aus Laravel-AI-Tabellen** - Schlanke Modelle (`App\Ai\Models\AgentConversation`, `AgentMessage`) auf den Laravel-AI-Tabellen (`agent_conversations`/`agent_conversation_messages`); Registry kann Konversation je Agent/Prozess anlegen; Anbindung in Pipeline-Ausführung. - Acceptance: Konversation + Messages werden bei Agent-Lauf persistiert (Fake). - Verify: `php artisan test --filter=Ai`; `composer test`. - Files: `app/Ai/Models/*`, `app/Ai/Services/AgentRegistry.php`, Tests. - Deps: T9. Size: S/M.
 
-- [ ] **T11: Auditing von AI-Entscheidungen**
-    - Akzeptierte/abgelehnte AI-Vorschläge (Entscheidung + Result-Rückverweis auf Konversation) über `AuditLedger`; `ShiftOptimization`-Ergebnis bleibt Domänendaten.
-    - Acceptance: AI-Entscheidung erscheint im Audit-Trail mit Bezug; Fake-Pfad testbar.
-    - Verify: `php artisan test --filter=Ai`; `composer test`.
-    - Files: `app/Ai/*`, `app/Services/ShiftOptimizationRunner.php` (Anbindung), Tests.
-    - Deps: T10, T2. Size: M.
+- [x] **T11: Auditing von AI-Entscheidungen** - Akzeptierte/abgelehnte AI-Vorschläge (Entscheidung + Result-Rückverweis auf Konversation) über `AuditLedger`; `ShiftOptimization`-Ergebnis bleibt Domänendaten. - Acceptance: AI-Entscheidung erscheint im Audit-Trail mit Bezug; Fake-Pfad testbar. - Verify: `php artisan test --filter=Ai`; `composer test`. - Files: `app/Ai/*`, `app/Services/ShiftOptimizationRunner.php` (Anbindung), Tests. - Deps: T10, T2. Size: M.
 
 **Checkpoint 4 (ai):** `composer test` grün ohne externe Keys (Fake); neue Agenten ohne Template-Eingriff beilegbar (Doku-Beispiel in `docs/ai.md`).
 
