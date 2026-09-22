@@ -20,8 +20,8 @@ const DEMO_ADMIN = { email: "admin@kiventro.de", password: "kiventro-demo" };
 
 async function loginAsDemoAdmin(page) {
     await page.goto("/admin/login");
-    await page.locator('input[name="email"]').fill(DEMO_ADMIN.email);
-    await page.locator('input[name="password"]').fill(DEMO_ADMIN.password);
+    await page.locator('[id="form.email"]').fill(DEMO_ADMIN.email);
+    await page.locator('[id="form.password"]').fill(DEMO_ADMIN.password);
     await page.locator('button[type="submit"]').click();
     // Nach dem Login landet man im Admin-Dashboard.
     await expect(page).toHaveURL(/\/admin$/);
