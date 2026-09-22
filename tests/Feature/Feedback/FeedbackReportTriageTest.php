@@ -7,6 +7,7 @@ use App\Audit\Models\AuditEvent;
 use App\Feedback\Enums\FeedbackCategory;
 use App\Feedback\Enums\FeedbackStatus;
 use App\Feedback\Filament\Resources\FeedbackReports\Pages\ListFeedbackReports;
+use App\Feedback\Filament\Resources\FeedbackReports\Pages\ViewFeedbackReport;
 use App\Feedback\Models\FeedbackReport;
 use App\Models\User;
 use Carbon\Carbon;
@@ -148,6 +149,18 @@ class FeedbackReportTriageTest extends TestCase
         Livewire::test(ListFeedbackReports::class)
             ->assertOk()
             ->assertSee($report->message)
+            ->assertDontSee('href="javascript:', escape: false);
+    }
+
+    public function test_page_url_infolist_does_not_render_non_http_links(): void
+    {
+        $admin = User::factory()->create();
+        $report = $this->report(['page_url' => 'javascript:alert(document.cookie)']);
+
+        $this->actingAs($admin);
+
+        Livewire::test(ViewFeedbackReport::class, ['record' => $report->getRouteKey()])
+            ->assertOk()
             ->assertDontSee('href="javascript:', escape: false);
     }
 

@@ -8,8 +8,6 @@ use App\Feedback\Enums\FeedbackCategory;
 use App\Feedback\Enums\FeedbackStatus;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Scope;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -125,18 +123,6 @@ class FeedbackReport extends Model
     }
 
     /**
-     * Noch nicht erledigte Meldungen (Triage-Eingang).
-     *
-     * @param  Builder<FeedbackReport>  $query
-     * @return Builder<FeedbackReport>
-     */
-    #[Scope]
-    protected function open(Builder $query): Builder
-    {
-        return $query->where('status', '!=', FeedbackStatus::Resolved);
-    }
-
-    /**
      * Screenshot-Inhalt für die Auslieferungs-Route.
      */
     public function screenshotContents(): ?string
@@ -150,17 +136,16 @@ class FeedbackReport extends Model
 
     /**
      * Löscht die Meldung samt privatem Screenshot (DSGVO: keine verwaisten Dateien).
+     * Die Datei wird über den deleting-Hook entfernt.
      */
     public function purge(): bool
     {
-        $this->deleteScreenshotFile();
-
         return $this->delete();
     }
 
     /**
      * Entfernt die Screenshot-Datei von der privaten Disk (falls vorhanden) und
-     * setzt den Pfad zurück, damit das Modell danach konsistent bleibt.
+     * setzt den Pfad im Modell zurück.
      */
     public function deleteScreenshotFile(): void
     {

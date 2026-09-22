@@ -63,7 +63,7 @@ class FeedbackReportResource extends Resource
      */
     public static function getNavigationBadge(): ?string
     {
-        $new = static::getModel()::where('status', FeedbackStatus::New)->count();
+        $new = once(fn (): int => static::getModel()::where('status', FeedbackStatus::New)->count());
 
         return $new > 0 ? (string) $new : null;
     }

@@ -10,6 +10,7 @@ use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class FeedbackReportInfolist
 {
@@ -52,7 +53,13 @@ class FeedbackReportInfolist
                             ->placeholder('–'),
                         TextEntry::make('page_url')
                             ->label('URL')
-                            ->url(fn (FeedbackReport $record): string => $record->page_url, shouldOpenInNewTab: true)
+                            // Nur http(s) verlinken – verhindert javascript:-/data:-Ziele (analog FeedbackReportsTable).
+                            ->url(
+                                fn (FeedbackReport $record): ?string => Str::startsWith($record->page_url, ['http://', 'https://'])
+                                    ? $record->page_url
+                                    : null,
+                                shouldOpenInNewTab: true,
+                            )
                             ->limit(60),
                         TextEntry::make('element_selector')
                             ->label('Markiertes Element (CSS)')
