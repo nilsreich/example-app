@@ -2,20 +2,24 @@
 
 namespace App\Filament\Resources\Shifts\Tables;
 
+use App\Audit\AuditLedger;
+use App\Audit\Enums\AuditEventType;
 use App\Enums\ShiftStatus;
 use App\Models\Shift;
 use App\Models\ShiftProposal;
 use App\Services\ShiftOptimizationRunner;
 use App\Services\ShiftProposalAcceptService;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 
 class ShiftsTable
 {
@@ -124,6 +128,9 @@ class ShiftsTable
                         && $record->latestOptimization === null
                         && self::canDispatch($record))
                     ->action(function (Shift $record): void {
+                        // Serverseitige Autorisierung (visible() ist nur UI-Hinweis).
+                        Gate::authorize('update', $record);
+
                         $optimization = app(ShiftOptimizationRunner::class)->runOrQueue($record);
 
                         if ($optimization === null) {
@@ -166,7 +173,37 @@ class ShiftsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    // Löschen muss ebenso revisionssicher sein wie jede andere
+                    // Zustandsänderung: Ledger-Event je Schicht statt stillem DELETE.
+                    BulkAction::make('deleteWithAudit')
+                        ->label('Löschen (protokolliert)')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Schichten löschen?')
+                        ->modalDescription('Je Schicht wird ein Lösch-Ereignis im Forward-Ledger protokolliert.')
+                        ->action(function (Collection $records): void {
+                            $ledger = app(AuditLedger::class);
+
+                            $records->each(function (Shift $shift) use ($ledger): void {
+                                Gate::authorize('delete', $shift);
+
+                                $ledger->record(
+                                    eventType: AuditEventType::Deleted,
+                                    previousState: $shift->snapshot(),
+                                    newState: ['deleted' => true],
+                                    auditable: $shift,
+                                );
+
+                                $shift->delete();
+                            });
+
+                            Notification::make()
+                                ->title('Schichten gelöscht')
+                                ->body('Die Löschungen wurden im Ledger protokolliert.')
+                                ->success()
+                                ->send();
+                        }),
                 ]),
             ]);
     }

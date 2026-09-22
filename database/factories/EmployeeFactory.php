@@ -39,4 +39,14 @@ class EmployeeFactory extends Factory
             'is_active' => false,
         ]);
     }
+
+    /**
+     * Erfüllt die Standard-Pflichtqualifikation der ShiftFactory (Staplerschein).
+     */
+    public function qualified(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'qualifications' => ['Staplerschein'],
+        ]);
+    }
 }

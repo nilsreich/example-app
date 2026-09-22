@@ -2,9 +2,7 @@
 
 namespace App\Filament\Resources\Shifts\Schemas;
 
-use App\Enums\ShiftStatus;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -27,12 +25,8 @@ class ShiftForm
                     ->label('Benötigte Qualifikationen')
                     ->suggestions(['Staplerschein', 'Ersthelfer', 'Kranführerschein', 'ADR-Schein', 'Schichtleitung'])
                     ->columnSpanFull(),
-                Select::make('status')
-                    ->options(ShiftStatus::class)
-                    ->default('open')
-                    ->required(),
-                Select::make('assigned_employee_id')
-                    ->relationship('assignedEmployee', 'name'),
+                // status und Zuweisung sind bewusst NICHT editierbar: Zustandsübergänge
+                // laufen ausschließlich über die Services + Audit-Ledger (Domänen-Invariante).
             ]);
     }
 }

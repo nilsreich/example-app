@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Ai\Data\AiResult;
 use App\Ai\Enums\AiDecision;
-use App\Ai\Enums\AiDriver;
 use App\Ai\Services\AiDecisionAuditor;
 use App\Enums\FeedbackRating;
 use App\Models\Employee;
@@ -32,6 +31,11 @@ class ShiftDispatch extends Component
 
     public int $shiftId;
 
+    /**
+     * Anzeige-Selektor des aktuellen Laufs. Nicht #[Locked], weil der Wert nach
+     * einem asynchronen Queue-Lauf per Polling wechselt – jede Verwendung wird
+     * stattdessen über die Zugehörigkeit zur geladenen Schicht geprüft.
+     */
     public ?int $optimizationId = null;
 
     /** @var array<int, string> Entwürfe je Vorschlag (editierbar). */
@@ -66,6 +70,10 @@ class ShiftDispatch extends Component
 
     public function mount(int $shiftId): void
     {
+        $shift = Shift::findOrFail($shiftId);
+
+        Gate::authorize('update', $shift);
+
         $this->shiftId = $shiftId;
         $this->optimizationId = ShiftOptimization::where('shift_id', $shiftId)->latest()->value('id');
         $this->loadDrafts();
@@ -119,6 +127,9 @@ class ShiftDispatch extends Component
         /** @var Shift $shift */
         $shift = $proposal->optimization->shift;
 
+        // Autorisierung VOR jeder Mutation (der Accept-Service prüft zusätzlich).
+        Gate::authorize('update', $shift);
+
         // Editierter Benachrichtigungstext wird mit dem Vorschlag versioniert.
         if (array_key_exists($proposal->id, $this->drafts)) {
             $proposal->update(['draft_message' => $this->drafts[$proposal->id]]);
@@ -136,15 +147,17 @@ class ShiftDispatch extends Component
 
     public function openFeedback(int $proposalId, string $rating): void
     {
-        if ($rating === FeedbackRating::Positive->value) {
-            ShiftFeedback::create(['proposal_id' => $proposalId, 'rating' => FeedbackRating::Positive]);
+        $proposal = $this->authorizedProposal($proposalId);
+
+        if (FeedbackRating::tryFrom($rating) === FeedbackRating::Positive) {
+            ShiftFeedback::create(['proposal_id' => $proposal->id, 'rating' => FeedbackRating::Positive]);
             $this->notice = 'Danke für das positive Feedback.';
             $this->loadDrafts();
 
             return;
         }
 
-        $this->feedbackProposalId = $proposalId;
+        $this->feedbackProposalId = $proposal->id;
         $this->feedbackCategory = '';
         $this->feedbackComment = null;
         $this->showFeedbackModal = true;
@@ -153,15 +166,19 @@ class ShiftDispatch extends Component
     public function submitFeedback(): void
     {
         $this->validate([
-            'feedbackProposalId' => ['required', 'integer', 'exists:shift_proposals,id'],
+            'feedbackProposalId' => ['required', 'integer'],
             'feedbackCategory' => ['required', 'string'],
             'feedbackComment' => ['nullable', 'string', 'max:1000'],
         ], attributes: [
             'feedbackCategory' => 'Kategorie',
         ]);
 
+        // Kein freies exists:shift_proposals,id (IDOR): der Vorschlag muss zum
+        // geladenen Lauf dieser Schicht gehören und die Schicht autorisiert sein.
+        $proposal = $this->authorizedProposal((int) $this->feedbackProposalId);
+
         ShiftFeedback::create([
-            'proposal_id' => $this->feedbackProposalId,
+            'proposal_id' => $proposal->id,
             'rating' => FeedbackRating::Negative,
             'reason_category' => $this->feedbackCategory,
             'comment' => $this->feedbackComment,
@@ -198,9 +215,7 @@ class ShiftDispatch extends Component
     public function render(): View
     {
         $shift = Shift::with('assignedEmployee')->findOrFail($this->shiftId);
-        $optimization = $this->optimizationId
-            ? ShiftOptimization::with(['proposals.employee', 'proposals.feedbacks'])->find($this->optimizationId)
-            : null;
+        $optimization = $this->loadOptimization();
 
         return view('livewire.shift-dispatch', [
             'shift' => $shift,
@@ -209,9 +224,47 @@ class ShiftDispatch extends Component
         ]);
     }
 
+    /**
+     * Lädt den angezeigten Lauf nur, wenn er zur geladenen Schicht gehört.
+     * Schützt vor manipuliertem optimizationId (Livewire-Property-Tampering).
+     */
+    private function loadOptimization(): ?ShiftOptimization
+    {
+        if ($this->optimizationId === null) {
+            return null;
+        }
+
+        return ShiftOptimization::with(['proposals.employee', 'proposals.feedbacks'])
+            ->where('shift_id', $this->shiftId)
+            ->find($this->optimizationId);
+    }
+
     private function optimization(): ShiftOptimization
     {
-        return ShiftOptimization::findOrFail($this->optimizationId);
+        $optimization = $this->loadOptimization();
+
+        if ($optimization === null) {
+            abort(404);
+        }
+
+        return $optimization;
+    }
+
+    /**
+     * Vorschlag + zugehörige Schicht unter Autorisierung auflösen: schließt
+     * IDOR über frei wählbare proposal_id (fremde Abteilung) aus.
+     */
+    private function authorizedProposal(int $proposalId): ShiftProposal
+    {
+        /** @var ShiftProposal $proposal */
+        $proposal = $this->optimization()->proposals()->findOrFail($proposalId);
+
+        /** @var Shift $shift */
+        $shift = $proposal->optimization->shift;
+
+        Gate::authorize('update', $shift);
+
+        return $proposal;
     }
 
     /**
@@ -224,19 +277,9 @@ class ShiftDispatch extends Component
      */
     private function recordAiDecision(AiDecision $decision, Shift $shift): void
     {
-        $optimization = $this->optimizationId
-            ? ShiftOptimization::find($this->optimizationId)
-            : null;
+        $optimization = $this->loadOptimization();
 
-        $raw = $optimization->raw_response ?? [];
-        $conversationId = $raw['conversation_id'] ?? null;
-
-        $result = new AiResult(
-            agent: (string) ($raw['agent'] ?? 'shift-optimizer'),
-            driver: AiDriver::tryFrom((string) ($raw['driver'] ?? 'mock')) ?? AiDriver::Mock,
-            text: (string) ($raw['text'] ?? ''),
-            conversationId: is_string($conversationId) ? $conversationId : null,
-        );
+        $result = AiResult::fromRawResponse($optimization->raw_response ?? null);
 
         app(AiDecisionAuditor::class)->record($decision, $result, auditable: $shift, actor: auth()->user());
     }
@@ -245,11 +288,17 @@ class ShiftDispatch extends Component
     {
         $this->drafts = [];
 
-        if (! $this->optimizationId) {
+        if ($this->optimizationId === null) {
             return;
         }
 
-        foreach (ShiftProposal::where('optimization_id', $this->optimizationId)->get() as $proposal) {
+        $optimization = $this->loadOptimization();
+
+        if ($optimization === null) {
+            return;
+        }
+
+        foreach ($optimization->proposals as $proposal) {
             $this->drafts[$proposal->id] = $proposal->draft_message ?? '';
         }
     }

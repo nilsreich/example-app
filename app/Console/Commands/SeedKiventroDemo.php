@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
@@ -161,15 +162,18 @@ class SeedKiventroDemo extends Command
 
         $tomorrow = now()->addDay()->startOfDay();
 
-        Shift::create([
+        // Über den Service: die Self-Service-Schicht wird damit genauso
+        // revisionssicher protokolliert wie jede andere Zuweisung.
+        $shift = Shift::create([
             'title' => 'Spätschicht Logistik (Self-Service)',
             'starts_at' => $tomorrow->copy()->setTime(14, 0),
             'ends_at' => $tomorrow->copy()->setTime(22, 0),
             'department' => 'Logistik',
             'required_qualifications' => ['Staplerschein'],
-            'status' => ShiftStatus::Assigned,
-            'assigned_employee_id' => $employee->id,
+            'status' => ShiftStatus::Open,
         ]);
+
+        app(ShiftAssignmentService::class)->assign($shift, $employee, 'Self-Service-Demo: direkt zugewiesen.');
     }
 
     /**
@@ -266,7 +270,10 @@ class SeedKiventroDemo extends Command
     }
 
     /**
-     * Setzt NUR die Demo-Domäne zurück (User, Settings und AI-SDK-Tabellen bleiben bestehen).
+     * Setzt NUR die Demo-Domäne zurück (User, Settings und AI-SDK-Tabellen
+     * bleiben bestehen). Der Ledger der Demo-Domäne wird mitgelöscht – sonst
+     * summierten sich verwaiste Ereignisse früherer Resets in den ROI-Zahlen
+     * auf (die UI verspricht den Reset ausdrücklich inkl. Ledger).
      */
     private function resetDemoTables(): void
     {
@@ -275,6 +282,10 @@ class SeedKiventroDemo extends Command
         foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shifts', 'employees'] as $table) {
             DB::table($table)->delete();
         }
+
+        AuditEvent::where('auditable_type', Shift::class)
+            ->orWhere('auditable_type', Employee::class)
+            ->delete();
 
         Schema::enableForeignKeyConstraints();
     }

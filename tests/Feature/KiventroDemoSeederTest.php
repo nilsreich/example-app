@@ -48,13 +48,16 @@ class KiventroDemoSeederTest extends TestCase
 
         $metrics = new RoiMetricsService(new RoiCalculatorService);
 
-        $this->assertSame(4, $metrics->resolvedConflicts());
-        // 4 Konflikte × 45 Min × 65 €/h = 195 €.
-        $this->assertSame(195.0, $metrics->savedCostsEur());
+        // 4 historische Zuweisungen + 1 Self-Service-Zuweisung: beide laufen
+        // über den Service und schreiben daher ein InitialAssignment-Event.
+        $this->assertSame(5, $metrics->resolvedConflicts());
+        // 5 Konflikte × 45 Min × 65 €/h = 243,75 €.
+        $this->assertSame(243.75, $metrics->savedCostsEur());
         // 3 Top-Übernahmen, davon 1 mit Negativ-Feedback → 2/4 ohne Nacharbeit.
         $this->assertSame(50.0, $metrics->automationRate());
         $this->assertSame(3, ShiftFeedback::count());
-        $this->assertSame(4, AuditEvent::where('auditable_type', Shift::class)->count());
+        // 4 historische + 1 Self-Service-Zuweisung, je ein Ledger-Event.
+        $this->assertSame(5, AuditEvent::where('auditable_type', Shift::class)->count());
         $this->assertNotNull($metrics->averageConfidence());
     }
 

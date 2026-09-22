@@ -30,6 +30,27 @@ final readonly class AiResult
     ) {}
 
     /**
+     * Rekonstruiert das Ergebnis aus einem gespeicherten raw_response-Array
+     * (T14-Ruling: conversation_id und Antworttext liegen dort). Einzige Quelle
+     * für ShiftDispatch und ShiftProposalAcceptService – vermeidet Drift.
+     *
+     * @param  array<string, mixed>|null  $raw
+     */
+    public static function fromRawResponse(?array $raw): self
+    {
+        $raw ??= [];
+        $conversationId = $raw['conversation_id'] ?? null;
+
+        return new self(
+            agent: (string) ($raw['agent'] ?? 'shift-optimizer'),
+            driver: AiDriver::tryFrom((string) ($raw['driver'] ?? 'mock')) ?? AiDriver::Mock,
+            text: (string) ($raw['text'] ?? ''),
+            conversationId: is_string($conversationId) ? $conversationId : null,
+            rawResponse: $raw,
+        );
+    }
+
+    /**
      * Liefert eine Kopie mit gesetzter Konversations-ID (immutable).
      */
     public function withConversationId(string $conversationId): self
