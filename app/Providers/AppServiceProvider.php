@@ -4,16 +4,11 @@ namespace App\Providers;
 
 use App\Audit\AuditLedger;
 use App\Audit\Enums\AuditEventType;
-use App\Contracts\ShiftOptimizerPipelineInterface;
-use App\Enums\PipelineDriver;
 use App\Enums\UserRole;
 use App\Filament\Auth\RoleBasedLoginResponse;
 use App\Identity\EntraGroupRoleMapper;
 use App\Identity\EntraUserResolver;
-use App\Models\Setting;
 use App\Models\User;
-use App\Pipelines\LaravelAiSdkPipeline;
-use App\Pipelines\MockDeterministicPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Illuminate\Auth\Events\Logout;
@@ -21,7 +16,6 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -34,23 +28,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Pipeline Driver Switch: "mock" (Default, ohne API-Key) oder "live"
-        // (Laravel AI SDK). Umschaltbar im Admin-Panel (Settings-Page).
-        // Der Schema-Guard hält Artisan-Befehle vor der Settings-Migration lauffähig.
-        $this->app->bind(ShiftOptimizerPipelineInterface::class, function (): ShiftOptimizerPipelineInterface {
-            try {
-                $driver = Schema::hasTable('settings')
-                    ? Setting::aiPipelineDriver()
-                    : PipelineDriver::Mock;
-            } catch (\Throwable) {
-                $driver = PipelineDriver::Mock;
-            }
-
-            return $driver === PipelineDriver::Live
-                ? $this->app->make(LaravelAiSdkPipeline::class)
-                : $this->app->make(MockDeterministicPipeline::class);
-        });
-
         // Rollenbasierter Login-Redirect (GF → Überblick, Bereichsleiter → Schichten, Nutzer → Meine Schichten).
         $this->app->bind(LoginResponseContract::class, RoleBasedLoginResponse::class);
 

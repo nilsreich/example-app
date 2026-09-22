@@ -123,4 +123,48 @@ class ShiftDispatchTest extends TestCase
         $this->assertSame(ShiftStatus::Open, $shift->fresh()->status);
         $this->assertSame(AuditEventType::Rollback, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->latest('version')->first()->event_type);
     }
+
+    public function test_assign_proposal_records_ai_decision_accepted(): void
+    {
+        $shift = Shift::factory()->create();
+        $employee = Employee::factory()->create();
+
+        $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
+        $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
+
+        $component->call('assignProposal', $proposalId);
+
+        $event = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::AiDecision)
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('accepted', $event->new_state['decision']);
+        $this->assertNotNull($event->new_state['conversation_id'] ?? null);
+        $this->assertSame($shift->id, $event->auditable_id);
+    }
+
+    public function test_rollback_records_ai_decision_rejected(): void
+    {
+        $shift = Shift::factory()->create();
+        Employee::factory()->create();
+
+        $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
+        $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
+        $component->call('assignProposal', $proposalId);
+
+        $component
+            ->set('rollbackReason', 'Mitarbeiter erneut erkrankt')
+            ->call('submitRollback');
+
+        $event = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::AiDecision)
+            ->latest('version')
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('rejected', $event->new_state['decision']);
+    }
 }

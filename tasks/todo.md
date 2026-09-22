@@ -57,15 +57,16 @@
 
 ## Phase 5: demo-shifts (Referenz)
 
-- [ ] T12: Shift-Audit auf generisches Ledger (Adapter/Entfall)
+- [x] T12: Shift-Audit auf generisches Ledger (Adapter/Entfall)
     - Acceptance: Zuweisung/Rollback → audit_events; Alt-Ledger unbenutzt
     - Verify: `php artisan test --filter=Shift`; `composer test`
-- [ ] T13: ShiftAuditEvent entfernen (drop-Migration, Code weg)
+- [x] T13: ShiftAuditEvent entfernen (drop-Migration, Code weg)
     - Acceptance: kein Bezug mehr; audit_events trägt Historie
     - Verify: `composer test`; `grep -rn ShiftAuditEvent app tests` leer
-- [ ] T14: Shift-Demo auf neue Module (Regression + e2e)
+- [x] T14: Shift-Demo auf neue Module (Regression + e2e)
     - Acceptance: alle Demo-Abläufe unverändert funktionsfähig
     - Verify: `composer test`; `npm run test:e2e`
+    - Playwright-e2e: lokale Verifikation beim Nutzer (Sandbox ohne Server/DB)
 
 **Checkpoint 5 (demo-shifts):** Playwright grün; keine Doppel-Implementierungen.
 

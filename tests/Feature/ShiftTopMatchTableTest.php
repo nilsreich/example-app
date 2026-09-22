@@ -11,8 +11,6 @@ use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftOptimization;
 use App\Models\User;
-use App\Pipelines\MockDeterministicPipeline;
-use App\Services\ShiftCandidateContextBuilder;
 use App\Services\ShiftOptimizationRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -28,8 +26,7 @@ class ShiftTopMatchTableTest extends TestCase
 
     private function runPipeline(Shift $shift): ShiftOptimization
     {
-        return (new ShiftOptimizationRunner(new MockDeterministicPipeline(new ShiftCandidateContextBuilder, 0)))
-            ->run($shift);
+        return app(ShiftOptimizationRunner::class)->run($shift);
     }
 
     public function test_open_shift_without_run_shows_compute_button(): void

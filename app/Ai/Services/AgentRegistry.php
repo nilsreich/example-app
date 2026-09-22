@@ -80,6 +80,12 @@ final class AgentRegistry
             );
         }
 
+        // Eigene Agent-Klasse (Docs Variante B): die Registry instanziiert den
+        // Agenten über den Container – keine Template-Anpassung nötig.
+        if (isset($config['class'])) {
+            return $this->resolved[$name] = app($config['class']);
+        }
+
         $driver = $config['driver'] ?? config('ai.agent_driver', 'mock');
 
         $agent = match ($driver) {

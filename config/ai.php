@@ -179,6 +179,18 @@ return [
             'provider' => null,
             'model' => null,
         ],
+
+        // kiventro Shift-Optimierer (Demo-Referenz, siehe docs/ai.md Variante B):
+        // Registriert eine eigene Agent-Klasse, die den AiAgent-Vertrag
+        // implementiert. Die Registry instanziiert sie über den Container;
+        // für "laravel-ai" greifen instructions/Provider/Modell aus dem
+        // ShiftOptimizerAgent (Promptable-Schema erzwingt strukturierte Antworten).
+        'shift-optimizer' => [
+            'class' => 'App\\Ai\\Agents\\ShiftOptimizerAgent',
+            'driver' => env('AI_AGENT_DRIVER', 'mock'),
+            'provider' => null,
+            'model' => null,
+        ],
     ],
 
     /*

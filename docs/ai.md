@@ -1,6 +1,6 @@
 # AI-Erweiterungspunkt (ai-Modul)
 
-> Modul-Id: `ai` · Spec: `SPEC-ai.md` · Status: Phase 4 umgesetzt (T9–T11), alle Gates grün.
+> Modul-Id: `ai` · Spec: `SPEC-ai.md` · Status: Phasen 4+5 umgesetzt (T9–T11, T14), alle Gates grün.
 
 Das Template liefert die **Infrastruktur** für eigene AI-Agenten — keine fixen
 Use-Cases. Kundenprojekte schreiben ihre Agenten in `app/Ai/Agents/` und legen
@@ -131,7 +131,7 @@ Erzeugt ein `audit_events`-Event: `event_type=ai_decision`, `source=ai`,
 `new_state` enthält `decision`, `agent`, `driver`, `conversation_id`, `text`.
 Damit bleibt „welche AI-Entscheidung hat diese Änderung verursacht?" über die
 globale Hash-Kette nachvollziehbar; der Demo-Runner
-(`ShiftOptimizationRunner`, Phase 5/T14) wird darauf umgestellt.
+(`ShiftOptimizationRunner`, Phase 5/T14) ist darauf umgestellt (Rulings T14-2..T14-7 im Ledger).
 
 ## Persistenz & DSGVO-Hinweise
 
@@ -155,6 +155,6 @@ composer test                  # volle Suite
 vendor/bin/phpstan analyse --no-progress   # aktuelle Baseline beachten
 ```
 
-Stand Zuschnitt Phase 4: 203 Tests / 665 Assertions grün, Pint PASS, PHPStan
-Baseline 54 (0 Fehler in `app/Ai|Audit|Identity|Feedback`). Kein Test ruft einen
-echten Provider auf (Secret-frei über `Promptable::fake()` bzw. Mock-Pipeline).
+Stand Zuschnitt Phasen 4+5 (T14): 204 Tests / 675 Assertions grün, Pint PASS,
+PHPStan Arbeitsbaum 36 < Baseline 53 (0 neue Fehler, 0 in `app/Ai|Audit|Identity|Feedback`).
+Kein Test ruft einen echten Provider auf (Secret-frei über `Promptable::fake()` bzw. Mock-Agent).

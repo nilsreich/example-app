@@ -5,11 +5,9 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\User;
-use App\Pipelines\MockDeterministicPipeline;
 use App\Services\RoiCalculatorService;
 use App\Services\RoiMetricsService;
 use App\Services\ShiftAssignmentService;
-use App\Services\ShiftCandidateContextBuilder;
 use App\Services\ShiftOptimizationRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -25,7 +23,7 @@ class RoiMetricsTest extends TestCase
 
     private function fastRunner(): ShiftOptimizationRunner
     {
-        return new ShiftOptimizationRunner(new MockDeterministicPipeline(new ShiftCandidateContextBuilder, 0));
+        return app(ShiftOptimizationRunner::class);
     }
 
     public function test_empty_database_yields_zero_and_nulls(): void

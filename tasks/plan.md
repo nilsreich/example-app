@@ -114,21 +114,21 @@ Die Schichtplanungs-Demo (Laravel + Filament + Laravel AI SDK) wird zu einem wie
 
 ### Phase 5: demo-shifts (Referenz-Domäne)
 
-- [ ] **T12: Shift-Audit auf generisches Ledger umstellen**
+- [x] **T12: Shift-Audit auf generisches Ledger umstellen**
     - `ShiftAuditLedger`/`ShiftRollbackService` auf `AuditLedger` umstellen (Adapter oder Entfall); Audit-Kontext (Shift als Auditable, Actor, Vorher/Nachher) bleibt.
     - Acceptance: Zuweisung/Rollback schreiben in `audit_events`; Alt-Ledger nicht mehr referenziert.
     - Verify: `php artisan test --filter=Shift`; `composer test`.
     - Files: `app/Services/ShiftAuditLedger.php`, `ShiftRollbackService.php`, `app/Audit/*`, Tests.
     - Deps: T2. Size: M.
 
-- [ ] **T13: `ShiftAuditEvent` entfernen**
+- [x] **T13: `ShiftAuditEvent` entfernen**
     - Neue Migration `drop_shift_audit_events_table` (Explizit, keine stillen Löschungen), Modell/Enum/Code entfernen; Tests aktualisieren.
     - Acceptance: Kein `ShiftAuditEvent`-Bezug mehr; `audit_events` trägt die Historie.
     - Verify: `composer test`; `grep -rn 'ShiftAuditEvent' app tests` leer.
     - Files: `database/migrations/*`, `app/Models/ShiftAuditEvent.php`, `app/Enums/AuditEventType.php` (ersetzt), Tests.
     - Deps: T12. Size: M.
 
-- [ ] **T14: Shift-Demo auf neue Module abgleichen (Regression)**
+- [x] **T14: Shift-Demo auf neue Module abgleichen (Regression)**
     - `ShiftOptimizerAgent`/Pipelines auf `AiAgent`-Contract (T9), Rollen/Abteilungen laufen über identity-Defaults, Feedback über `App\Feedback`; alle bestehenden Shift-Tests + Rolle-…-Tests + e2e-Smoke grün.
     - Acceptance: Alle Demo-Abläufe (Dispatch, Top-Match, Annehmen, Slide-Over, ROI-Deeplink, Rollen-Sichten) unverändert funktionsfähig.
     - Verify: `composer test`; `npm run test:e2e` (Playwright).

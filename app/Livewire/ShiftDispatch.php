@@ -2,7 +2,12 @@
 
 namespace App\Livewire;
 
+use App\Ai\Data\AiResult;
+use App\Ai\Enums\AiDecision;
+use App\Ai\Enums\AiDriver;
+use App\Ai\Services\AiDecisionAuditor;
 use App\Enums\FeedbackRating;
+use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftOptimization;
@@ -75,19 +80,28 @@ class ShiftDispatch extends Component
 
     public function assignProposal(int $proposalId, ShiftAssignmentService $assignments): void
     {
+        /** @var ShiftProposal $proposal */
         $proposal = $this->optimization()->proposals()->findOrFail($proposalId);
 
+        /** @var Shift $shift */
+        $shift = $proposal->optimization->shift;
+
         // Rechtematrix: Nur Dispositionsrollen im eigenen Abteilungs-Scope.
-        Gate::authorize('update', $proposal->optimization->shift);
+        Gate::authorize('update', $shift);
 
         // Editierter Benachrichtigungstext wird mit dem Vorschlag versioniert.
         if (array_key_exists($proposal->id, $this->drafts)) {
             $proposal->update(['draft_message' => $this->drafts[$proposal->id]]);
         }
 
-        $assignments->assign($proposal->optimization->shift, $proposal->employee);
+        /** @var Employee $employee */
+        $employee = $proposal->employee;
 
-        $this->notice = $proposal->employee->name.' wurde zugewiesen (Ledger-Event geschrieben).';
+        $assignments->assign($shift, $employee);
+
+        $this->recordAiDecision(AiDecision::Accepted, $shift);
+
+        $this->notice = $employee->name.' wurde zugewiesen (Ledger-Event geschrieben).';
         $this->showRoiLink = (bool) auth()->user()?->role->seesMetrics();
     }
 
@@ -143,6 +157,8 @@ class ShiftDispatch extends Component
 
         $rollbacks->rollback($shift, $this->rollbackReason, $this->cancellationMessage);
 
+        $this->recordAiDecision(AiDecision::Rejected, $shift);
+
         $this->showRollbackModal = false;
         $this->rollbackReason = '';
         $this->cancellationMessage = null;
@@ -167,6 +183,35 @@ class ShiftDispatch extends Component
     private function optimization(): ShiftOptimization
     {
         return ShiftOptimization::findOrFail($this->optimizationId);
+    }
+
+    /**
+     * Schreibt eine AI-Entscheidung (akzeptiert/abgelehnt) in den Audit-Trail.
+     * Das AiResult wird aus der letzten ShiftOptimization rekonstruiert –
+     * conversation_id und Antworttext liegen im raw_response (T14-Ruling).
+     */
+    private function recordAiDecision(AiDecision $decision, Shift $shift): void
+    {
+        $optimization = ShiftOptimization::query()
+            ->where('shift_id', $shift->id)
+            ->latest('id')
+            ->first();
+
+        $raw = $optimization->raw_response ?? [];
+        $conversationId = $raw['conversation_id'] ?? null;
+
+        if (! is_string($conversationId)) {
+            return;
+        }
+
+        $result = new AiResult(
+            agent: (string) ($raw['agent'] ?? 'shift-optimizer'),
+            driver: AiDriver::tryFrom((string) ($raw['driver'] ?? 'mock')) ?? AiDriver::Mock,
+            text: (string) ($raw['text'] ?? ''),
+            conversationId: $conversationId,
+        );
+
+        app(AiDecisionAuditor::class)->record($decision, $result, auditable: $shift, actor: auth()->user());
     }
 
     private function loadDrafts(): void
