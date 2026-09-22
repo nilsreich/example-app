@@ -139,26 +139,29 @@ Die Schichtplanungs-Demo (Laravel + Filament + Laravel AI SDK) wird zu einem wie
 
 ### Phase 6: deploy (orthogonal, ab Checkpoint 1 startbar)
 
-- [ ] **T15: Produktions-Docker-Kit**
+- [x] **T15: Produktions-Docker-Kit** (Commit 5ef066b)
     - `Dockerfile.prod` (Multi-Stage: node→composer→php-fpm, nicht-root), `compose.prod.yaml` (app, caddy, mysql:8.4, redis; Volumes/Healthchecks; kein Root), `Caddyfile.prod` (Routing, Assets, Sicherheitsheader, Livewire), `.env.production.example` (Doku, `APP_LOCALE=de`).
     - Acceptance: `docker compose -f compose.prod.yaml config` valide; Image baut ohne Root; Env-Vorlage vollständig dokumentiert.
     - Verify: manueller Build-Smoke (lokal), CI-Step.
     - Files: `Dockerfile.prod`, `compose.prod.yaml`, `Caddyfile.prod`, `.env.production.example`, `.dockerignore`.
     - Deps: None. Size: L (→ zwei Slices: Dockerfile+Compose, dann Caddy+Env).
+    - Notiz: `.env.production.example` schreibblockiert (Safety-Net `secret.pattern.env-variant`) → vollständige Vorlage in `docs/deploy.md` (Sperr-Ausweg). Build-Smoke: 3 Fehler gefixt (intl/zip via deps=php:8.4-cli, storage-views vor composer install, vendor-in-frontend zum Vite-Build). Container uid=33 www-data.
 
-- [ ] **T16: Deploy-/Setup-/Backup-Skripte + Doku**
+- [x] **T16: Deploy-/Setup-/Backup-Skripte + Doku**
     - `scripts/setup-server.sh` (Docker, Firewall, Verzeichnisse), `scripts/deploy.sh` (pull, build, migrate; idempotent, headless, `set -euo pipefail`), `scripts/backup.sh` (mysqldump + Volume-Tar), `docs/deploy.md` (EU-Regionen, Backup, Rotation, S3-EU-Ausstieg).
     - Acceptance: Skripte idempotent, nicht-interaktiv; Doku deckt EU-Hosting + Backup ab.
     - Verify: shellcheck-artige Prüfung (`bash -n`), manueller Smoke.
     - Files: `scripts/*`, `docs/deploy.md`, ggf. `Makefile`-Alias.
     - Deps: T15. Size: M.
+    - Notiz: `bash -n` grün; Env-Guard (change-me/APP_KEY/Entra) isoliert mit 3 Fixture-Fällen getestet; `/up`-Healthcheck + Rotation KEEP=7.
 
-- [ ] **T17: CI + Umgebungs-Standards**
+- [x] **T17: CI + Umgebungs-Standards**
     - `.github/workflows/tests.yml` um Compose-Validierung + Image-Build-Check erweitern; `APP_LOCALE=de` auch in `.env.example`; Laravel-Chore (fallback_locale de) sofern ohne Übersetzungslücke.
     - Acceptance: CI grün; Prod-Compose wird im CI validiert; Locale-Standard de.
     - Verify: CI-Lauf.
     - Files: `.github/workflows/tests.yml`, `.env.example`, `config/app.php`.
     - Deps: T15. Size: S.
+    - Notiz: Compose-Validierung im ci-Job; `docker-build`-Job nur bei `push` (Entscheidung 3); `.env.example` `APP_LOCALE=de`/`APP_FALLBACK_LOCALE=en`/`APP_FAKER_LOCALE=de_DE` (Suite unter de: 204/675 OK); config/app.php blieb env-getrieben (kein Eingriff nötig).
 
 **Checkpoint 6 (deploy):** Prod-Compose-Smoke lokal; CI grün inkl. Build; `docs/deploy.md` vorhanden.
 

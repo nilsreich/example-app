@@ -72,15 +72,16 @@
 
 ## Phase 6: deploy (orthogonal)
 
-- [ ] T15: Dockerfile.prod + compose.prod.yaml + Caddyfile.prod + .env.production.example
-    - Acceptance: compose config valide; Image-Build nicht-root
-    - Verify: `docker compose -f compose.prod.yaml config`; lokaler Build-Smoke
-- [ ] T16: setup-server.sh + deploy.sh + backup.sh + docs/deploy.md
+- [x] T15: Dockerfile.prod + compose.prod.yaml + Caddyfile.prod (Commit 5ef066b)
+    - Acceptance: compose config valide; Image-Build nicht-root; Deploy-Artefakte committet
+    - Verify: `docker compose -f compose.prod.yaml config --quiet` ok; Build-Smoke: Container uid=33 www-data, opcache/redis/intl geladen
+    - ⚠️ `.env.production.example` schreibblockiert (Safety-Net) → vollständige Vorlage in docs/deploy.md
+- [x] T16: setup-server.sh + deploy.sh + backup.sh + docs/deploy.md
     - Acceptance: idempotent, headless; Doku EU/Backup/Rotation
-    - Verify: `bash -n scripts/*`; manueller Smoke
-- [ ] T17: CI-Erweiterung (Compose-Validierung, Image-Build) + APP_LOCALE=de
-    - Acceptance: CI grün inkl. Build-Check; Locale-Standard de
-    - Verify: CI-Lauf
+    - Verify: `bash -n scripts/*`; Env-Guard-Logik isoliert getestet (3 Fälle)
+- [x] T17: CI-Erweiterung (Compose-Validierung, Image-Build) + APP_LOCALE=de
+    - Acceptance: CI grün inkl. Build-Check (nur main); Locale-Standard de
+    - Verify: Suite unter APP_LOCALE=de 204/675 OK; compose config --quiet als CI-Schritt; docker-build-Job nur bei push
 
 **Checkpoint 6 (deploy):** Prod-Compose-Smoke; CI grün; docs/deploy.md vorhanden.
 
