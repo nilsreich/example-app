@@ -83,7 +83,7 @@ final class AuditExporterTest extends TestCase
         $csv = app(AuditExporter::class)->csv();
 
         $lines = explode("\n", trim($csv));
-        $row = str_getcsv($lines[1]);
+        $row = str_getcsv($lines[1], ',', '"', '');
         $this->assertSame('updated', $row[2]);
         $this->assertSame(json_encode(['name' => 'Mia, "die Zauberin"']), $row[11]);
     }
@@ -246,5 +246,25 @@ final class AuditExporterTest extends TestCase
         $toOnly = explode(PHP_EOL, trim($exporter->csv(['to' => '2026-01-15', 'from' => '2026-01-14'])));
         $this->assertCount(2, $toOnly);
         $this->assertStringContainsString('created', $toOnly[1]);
+    }
+
+    public function test_csv_neutralizes_formula_injection(): void
+    {
+        $user = $this->actor();
+        // user_agent ist client-kontrolliert: führendes "=" würde in Excel als Formel ausgewertet.
+        $this->ledger()->record(
+            eventType: AuditEventType::Created,
+            previousState: [],
+            newState: [],
+            actor: $user,
+            ip: '127.0.0.1',
+            userAgent: '=cmd|\' /C calc\'!A0',
+        );
+
+        $csv = app(AuditExporter::class)->csv();
+        $row = str_getcsv(explode("\n", trim($csv))[1], ',', '"', '');
+
+        // Spalte 10 = user_agent; neutralisiert mit führendem Apostroph.
+        $this->assertSame("'=cmd|' /C calc'!A0", $row[10]);
     }
 }

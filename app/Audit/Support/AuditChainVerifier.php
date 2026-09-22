@@ -22,13 +22,13 @@ use Illuminate\Database\Eloquent\Collection;
 final class AuditChainVerifier
 {
     /**
-     * Bewertet jeden Block der gegebenen (ggf. gefilterten) Export-Menge
-     * gegen die vollständige, ungefilterte Ledger-Kette.
+     * Lädt den Kettenkontext einmalig (id → hash, aufsteigend, plus direkter
+     * Vorgänger je id). Für Streaming-Exporte, die nicht alle Events im
+     * Speicher halten wollen.
      *
-     * @param  Collection<int, AuditEvent>  $events
-     * @return array<int, bool> Event-ID → ketten-gültig ja/nein
+     * @return array{chain: array<int, string>, predecessorOf: array<int, int|null>}
      */
-    public static function verifyAll(Collection $events): array
+    public static function context(): array
     {
         /** @var array<int, string> $chain id → hash, aufsteigend */
         $chain = AuditEvent::query()->orderBy('id')->pluck('hash', 'id')->all();
@@ -42,18 +42,40 @@ final class AuditChainVerifier
             $previousId = $id;
         }
 
+        return ['chain' => $chain, 'predecessorOf' => $predecessorOf];
+    }
+
+    /**
+     * Bewertet einen einzelnen Block gegen den zuvor geladenen Kettenkontext.
+     *
+     * @param  array{chain: array<int, string>, predecessorOf: array<int, int|null>}  $context
+     */
+    public static function evaluate(AuditEvent $event, array $context): bool
+    {
+        $predecessorId = $context['predecessorOf'][$event->id] ?? null;
+
+        $expectedPrevHash = $predecessorId === null
+            ? null
+            : ($context['chain'][$predecessorId] ?? null);
+
+        return $event->isChainValid() && $event->prev_hash === $expectedPrevHash;
+    }
+
+    /**
+     * Bewertet jeden Block der gegebenen (ggf. gefilterten) Export-Menge
+     * gegen die vollständige, ungefilterte Ledger-Kette.
+     *
+     * @param  Collection<int, AuditEvent>  $events
+     * @return array<int, bool> Event-ID → ketten-gültig ja/nein
+     */
+    public static function verifyAll(Collection $events): array
+    {
+        $context = self::context();
+
         $states = [];
 
         foreach ($events as $event) {
-            $predecessorId = $predecessorOf[$event->id] ?? null;
-
-            $expectedPrevHash = $predecessorId === null
-                ? null
-                : ($chain[$predecessorId] ?? null);
-
-            $linksForward = $event->prev_hash === $expectedPrevHash;
-
-            $states[$event->id] = $event->isChainValid() && $linksForward;
+            $states[$event->id] = self::evaluate($event, $context);
         }
 
         return $states;
