@@ -21,7 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
         FeedbackServiceProvider::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Hinter Caddy (compose.prod.yaml) laufen alle Requests über einen
+        // Reverse-Proxy → X-Forwarded-* vertrauen, damit generated URLs
+        // (z. B. ROI-Deeplinks) korrekt HTTPS verwenden.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

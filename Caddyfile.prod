@@ -1,0 +1,48 @@
+# =============================================================================
+# Caddyfile.prod — Reverse-Proxy + auto-HTTPS (Let's Encrypt) für B2E-Template
+#
+# Eingebunden in compose.prod.yaml als Volume (nur-lesend). Werte aus ENV:
+#   {$APP_DOMAIN}   z. B. app.example.com (ohne Schema)
+#   {$ACME_EMAIL}   für Zertifikats-Benachrichtigungen
+#
+# Lokaler Smoke ohne Domain: APP_DOMAIN=localhost → Caddy nutzt internen CA.
+# =============================================================================
+
+{
+    # E-Mail für Let's-Encrypt-Konto (Pflicht für echte Domains).
+    email {$ACME_EMAIL}
+    # Produktions-ACME-Endpunkt (Standard); für Tests: acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$APP_DOMAIN} {
+    # Kompression (brotli/zstd/gzip je nach Client).
+    encode zstd gzip
+
+    # PHP-FPM der App — ohne Pufferung, damit Livewire-4-Streaming/SSE
+    # (z. B. Fortschrittsantworten) sofort durchgereicht werden.
+    reverse_proxy app:9000 {
+        flush_interval -1
+        # Standard-Forwarded-Header für die App (HTTPS-Erkennung, URL-Bau).
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Port {server_port}
+    }
+
+    # Sicherheits-Header (Basis-Set; CSP bewusst nur auf Abruf — Filament/Flux
+    # setzen Hersteller-/Inline-Skripte ein, siehe docs/deploy.md).
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        X-XSS-Protection "0"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    # Interner Healthcheck-Endpunkt bleibt funktional (compose-Healthcheck).
+    handle /up {
+        reverse_proxy app:9000
+    }
+}
+
+# HTTP → HTTPS macht Caddy automatisch (auto-HTTPS). Kein eigenes Port-80-Routing nötig.
