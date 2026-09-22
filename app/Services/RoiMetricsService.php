@@ -2,15 +2,16 @@
 
 namespace App\Services;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Kennzahlen-Ebene für ROI-Dashboard: Aggregiert DB-Fakten und delegiert
@@ -64,6 +65,7 @@ class RoiMetricsService
             ->where('status', ShiftStatus::Assigned)
             ->with('optimizations.proposals.feedbacks')
             ->chunk(100, function ($shifts) use (&$adopted, &$total): void {
+                /** @var Collection<int, Shift> $shifts */
                 foreach ($shifts as $shift) {
                     $latest = $shift->optimizations->first();
 
@@ -169,14 +171,19 @@ class RoiMetricsService
     }
 
     /**
-     * Ledger-Events im aktuellen Abteilungs-Scope.
+     * Ledger-Events im aktuellen Abteilungs-Scope: initiale Zuweisungen
+     * der Referenz-Domäne, gehalten im generischen Audit-Ledger.
+     *
+     * @return Builder<AuditEvent>
      */
     private function auditEvents(): Builder
     {
-        $query = ShiftAuditEvent::query()->where('event_type', AuditEventType::InitialAssignment);
+        $query = AuditEvent::query()
+            ->where('auditable_type', Shift::class)
+            ->where('event_type', AuditEventType::InitialAssignment);
 
         if ($this->departments !== null) {
-            $query->whereHas('shift', fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
+            $query->whereHasMorph('auditable', [Shift::class], fn (Builder $shifts): Builder => $shifts->whereIn('department', $this->departments));
         }
 
         return $query;
@@ -184,6 +191,8 @@ class RoiMetricsService
 
     /**
      * Schicht-Query im aktuellen Abteilungs-Scope.
+     *
+     * @return Builder<Shift>
      */
     private function shifts(): Builder
     {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Audit\Concerns\Auditable;
 use Carbon\CarbonInterface;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -30,11 +31,15 @@ use Illuminate\Support\Carbon;
 #[Fillable(['user_id', 'name', 'role', 'department', 'qualifications', 'weekly_overtime_minutes', 'last_shift_ended_at', 'is_active'])]
 class Employee extends Model
 {
+    use Auditable;
+
     /** @use HasFactory<EmployeeFactory> */
     use HasFactory;
 
     /**
      * Zugehöriger Login (Self-Service "Meine Schichten").
+     *
+     * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
@@ -57,6 +62,8 @@ class Employee extends Model
 
     /**
      * Schichten, die diesem Mitarbeiter aktuell zugewiesen sind.
+     *
+     * @return HasMany<Shift, $this>
      */
     public function shifts(): HasMany
     {
@@ -65,6 +72,8 @@ class Employee extends Model
 
     /**
      * KI-Vorschläge, die diesen Mitarbeiter als Kandidaten nennen.
+     *
+     * @return HasMany<ShiftProposal, $this>
      */
     public function proposals(): HasMany
     {
@@ -73,6 +82,9 @@ class Employee extends Model
 
     /**
      * Nur verfügbare (aktive) Mitarbeitende für die Kandidatenauswahl.
+     *
+     * @param  Builder<Employee>  $query
+     * @return Builder<Employee>
      */
     #[Scope]
     protected function available(Builder $query): Builder
@@ -110,6 +122,6 @@ class Employee extends Model
             return null;
         }
 
-        return $this->last_shift_ended_at->floatDiffInHours($reference ?? now());
+        return $this->last_shift_ended_at->diffInHours($reference ?? now());
     }
 }

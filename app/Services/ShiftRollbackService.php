@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
-use App\Enums\AuditEventType;
+use App\Audit\AuditLedger;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -17,16 +18,16 @@ use InvalidArgumentException;
 class ShiftRollbackService
 {
     public function __construct(
-        private readonly ShiftAuditLedger $ledger,
+        private readonly AuditLedger $ledger,
     ) {}
 
-    public function rollback(Shift $shift, string $reason, ?string $cancellationMessage = null): ShiftAuditEvent
+    public function rollback(Shift $shift, string $reason, ?string $cancellationMessage = null): AuditEvent
     {
         if (trim($reason) === '') {
             throw new InvalidArgumentException('Ein Rückrollgrund ist erforderlich (Revisionssicherheit).');
         }
 
-        return DB::transaction(function () use ($shift, $reason, $cancellationMessage): ShiftAuditEvent {
+        return DB::transaction(function () use ($shift, $reason, $cancellationMessage): AuditEvent {
             $shift = Shift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
 
             if ($shift->status !== ShiftStatus::Assigned || $shift->assigned_employee_id === null) {
@@ -34,7 +35,8 @@ class ShiftRollbackService
             }
 
             // Referenz auf die rückgängig gemachte Zuweisung (jüngstes Assign-Event).
-            $revertedEventId = ShiftAuditEvent::where('shift_id', $shift->id)
+            $revertedEventId = AuditEvent::where('auditable_type', Shift::class)
+                ->where('auditable_id', $shift->id)
                 ->whereIn('event_type', [AuditEventType::InitialAssignment, AuditEventType::ManualOverride])
                 ->latest('version')
                 ->value('id');
@@ -47,12 +49,18 @@ class ShiftRollbackService
 
             $newState = $shift->fresh()->snapshot();
             $newState['rollback_reason'] = $reason;
+            $newState['reverted_event_id'] = $revertedEventId;
 
             if ($cancellationMessage !== null && $cancellationMessage !== '') {
                 $newState['cancellation_message'] = $cancellationMessage;
             }
 
-            return $this->ledger->record($shift, AuditEventType::Rollback, $previousState, $newState, $revertedEventId);
+            return $this->ledger->record(
+                eventType: AuditEventType::Rollback,
+                previousState: $previousState,
+                newState: $newState,
+                auditable: $shift,
+            );
         });
     }
 }

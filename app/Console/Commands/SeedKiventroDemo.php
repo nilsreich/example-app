@@ -2,13 +2,14 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\FeedbackCategory;
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
-use App\Enums\FeedbackStatus;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
+use App\Feedback\Enums\FeedbackCategory;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Models\FeedbackReport;
 use App\Models\Employee;
-use App\Models\FeedbackReport;
 use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\ShiftFeedback;
@@ -62,22 +63,20 @@ class SeedKiventroDemo extends Command
 
         // Zeiten relativ zu "jetzt", damit die Demo an jedem Tag funktioniert.
         $employees = [
-            ['Anna Berger', 'Schichtleiterin', 'Logistik', ['Schichtleitung', 'Staplerschein'], 45, $now->copy()->subHours(20)],
-            ['Ben Kramer', 'Staplerfahrer', 'Logistik', ['Staplerschein'], 300, $now->copy()->subHours(8)],
-            ['Cem Yilmaz', 'Kommissionierer', 'Logistik', [], 0, $now->copy()->subHours(40)],
-            ['Dora Lehmann', 'Staplerfahrerin', 'Logistik', ['Staplerschein', 'Ersthelfer'], 120, $now->copy()->subHours(12)],
-            ['Erik Sommer', 'Kommissionierer', 'Logistik', ['Ersthelfer'], 600, $now->copy()->subHours(18)],
-            ['Fatma Demir', 'Produktionshelferin', 'Produktion', [], 30, $now->copy()->subHours(18)],
-            ['Gregor Hahn', 'Schichtleiter', 'Produktion', ['Schichtleitung', 'Ersthelfer'], 90, $now->copy()->subHours(8)],
-            ['Hanna Vogt', 'Versandmitarbeiterin', 'Versand', ['ADR-Schein'], 0, null],
-            ['Ivan Petrov', 'Versandmitarbeiter', 'Versand', ['Staplerschein'], 200, $now->copy()->subHours(12)],
+            ['Anna Berger', 'Schichtleiterin', 'Logistik', ['Schichtleitung', 'Staplerschein'], 45, $now->copy()->subHours(20), true],
+            ['Ben Kramer', 'Staplerfahrer', 'Logistik', ['Staplerschein'], 300, $now->copy()->subHours(8), true],
+            ['Cem Yilmaz', 'Kommissionierer', 'Logistik', [], 0, $now->copy()->subHours(40), true],
+            ['Dora Lehmann', 'Staplerfahrerin', 'Logistik', ['Staplerschein', 'Ersthelfer'], 120, $now->copy()->subHours(12), true],
+            ['Erik Sommer', 'Kommissionierer', 'Logistik', ['Ersthelfer'], 600, $now->copy()->subHours(18), true],
+            ['Fatma Demir', 'Produktionshelferin', 'Produktion', [], 30, $now->copy()->subHours(18), true],
+            ['Gregor Hahn', 'Schichtleiter', 'Produktion', ['Schichtleitung', 'Ersthelfer'], 90, $now->copy()->subHours(8), true],
+            ['Hanna Vogt', 'Versandmitarbeiterin', 'Versand', ['ADR-Schein'], 0, null, true],
+            ['Ivan Petrov', 'Versandmitarbeiter', 'Versand', ['Staplerschein'], 200, $now->copy()->subHours(12), true],
             // Krankmeldung: löst das Demo-Szenario "kurzfristiger Personalausfall" aus.
             ['Julia Brandt', 'Kommissioniererin', 'Logistik', ['Staplerschein'], 60, $now->copy()->subHours(30), false],
         ];
 
-        foreach ($employees as $entry) {
-            [$name, $role, $department, $qualifications, $overtime, $lastEnded] = $entry;
-
+        foreach ($employees as [$name, $role, $department, $qualifications, $overtime, $lastEnded, $isActive]) {
             Employee::create([
                 'name' => $name,
                 'role' => $role,
@@ -85,7 +84,7 @@ class SeedKiventroDemo extends Command
                 'qualifications' => $qualifications,
                 'weekly_overtime_minutes' => $overtime,
                 'last_shift_ended_at' => $lastEnded,
-                'is_active' => $entry[6] ?? true,
+                'is_active' => $isActive,
             ]);
         }
     }
@@ -187,7 +186,7 @@ class SeedKiventroDemo extends Command
         $dispatcher = User::where('email', 'leitung.logistik@kiventro.de')->first();
 
         FeedbackReport::create([
-            'user_id' => $dispatcher?->id ?? $admin?->id,
+            'user_id' => $dispatcher->id ?? $admin->id,
             'category' => FeedbackCategory::Bug,
             'message' => 'Beim Rollback fehlte die Storno-Nachricht in der Bestätigung. Bitte prüfen, ob das Feld übernommen wird.',
             'page_url' => url('/admin/shifts'),
@@ -199,7 +198,7 @@ class SeedKiventroDemo extends Command
         ]);
 
         FeedbackReport::create([
-            'user_id' => $admin?->id ?? $dispatcher?->id,
+            'user_id' => $admin->id ?? $dispatcher->id,
             'category' => FeedbackCategory::Idea,
             'message' => 'Vorschlag: Konfidenz-Score im Slide-Over zusätzlich als Trendpfeil im Vergleich zum letzten Lauf zeigen.',
             'page_url' => url('/admin/shifts'),
@@ -217,6 +216,7 @@ class SeedKiventroDemo extends Command
      */
     private function seedHistory(ShiftOptimizationRunner $runner, ShiftAssignmentService $assignments): void
     {
+        /** @var list<array{int, string, string, list<string>, bool, FeedbackRating|null}> $entries */
         $entries = [
             // [Tage zurück, Titel, Abteilung, Qualifikation, Top-Match übernehmen?, Feedback]
             [12, 'Frühschicht Logistik (KW)', 'Logistik', ['Staplerschein'], true, FeedbackRating::Positive],
@@ -240,6 +240,11 @@ class SeedKiventroDemo extends Command
             $optimization = $runner->run($shift);
             $proposals = $optimization->proposals;
             $proposal = $takeTop ? $proposals->first() : ($proposals->skip(1)->first() ?? $proposals->first());
+
+            if ($proposal === null || $proposal->employee === null) {
+                continue;
+            }
+
             $event = $assignments->assign($shift, $proposal->employee);
 
             $models = [$optimization, $event, ...$proposals->all()];
@@ -264,7 +269,16 @@ class SeedKiventroDemo extends Command
 
     private function backdate(Model $model, CarbonInterface $date): void
     {
-        // Ledger-Tabellen (z. B. shift_audit_events) haben kein updated_at.
+        // Audit-Events sind append-only (Modell-save() ist verboten); created_at
+        // ist reine Historie-Metadaten und gehört nicht zum Hash-Block. Für das
+        // Demo-Backdating daher die einzige bewusste Ausnahme per Query.
+        if ($model instanceof AuditEvent) {
+            AuditEvent::query()->whereKey($model->getKey())->update(['created_at' => $date]);
+
+            return;
+        }
+
+        // Ledger-Tabellen (audit_events) haben kein updated_at – hier nur reguläre Demo-Modelle.
         $attributes = ['created_at' => $date];
 
         if (
@@ -286,7 +300,7 @@ class SeedKiventroDemo extends Command
     {
         Schema::disableForeignKeyConstraints();
 
-        foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shift_audit_events', 'shifts', 'employees'] as $table) {
+        foreach (['feedback_reports', 'shift_feedbacks', 'shift_proposals', 'shift_optimizations', 'shifts', 'employees'] as $table) {
             DB::table($table)->delete();
         }
 

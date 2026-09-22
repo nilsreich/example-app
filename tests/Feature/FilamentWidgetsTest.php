@@ -8,9 +8,7 @@ use App\Filament\Widgets\SavingsChartWidget;
 use App\Filament\Widgets\ShiftStatusChartWidget;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Pipelines\MockDeterministicPipeline;
 use App\Services\ShiftAssignmentService;
-use App\Services\ShiftCandidateContextBuilder;
 use App\Services\ShiftOptimizationRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -25,7 +23,7 @@ class FilamentWidgetsTest extends TestCase
         $shift = Shift::factory()->create(['required_qualifications' => []]);
         Employee::factory()->create();
 
-        $runner = new ShiftOptimizationRunner(new MockDeterministicPipeline(new ShiftCandidateContextBuilder, 0));
+        $runner = app(ShiftOptimizationRunner::class);
         $optimization = $runner->run($shift);
 
         app(ShiftAssignmentService::class)->assign($shift, $optimization->proposals->first()->employee);

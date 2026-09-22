@@ -2,17 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use App\Enums\UserRole;
 use App\Filament\Resources\Shifts\Pages\ListShifts;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftOptimization;
 use App\Models\User;
-use App\Pipelines\MockDeterministicPipeline;
-use App\Services\ShiftCandidateContextBuilder;
 use App\Services\ShiftOptimizationRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -28,8 +26,7 @@ class ShiftTopMatchTableTest extends TestCase
 
     private function runPipeline(Shift $shift): ShiftOptimization
     {
-        return (new ShiftOptimizationRunner(new MockDeterministicPipeline(new ShiftCandidateContextBuilder, 0)))
-            ->run($shift);
+        return app(ShiftOptimizationRunner::class)->run($shift);
     }
 
     public function test_open_shift_without_run_shows_compute_button(): void
@@ -88,7 +85,34 @@ class ShiftTopMatchTableTest extends TestCase
 
         $this->assertSame(ShiftStatus::Assigned, $shift->fresh()->status);
         $this->assertSame($employee->id, $shift->fresh()->assigned_employee_id);
-        $this->assertSame(AuditEventType::InitialAssignment, ShiftAuditEvent::latest('version')->first()->event_type);
+
+        $assignment = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::InitialAssignment)
+            ->first();
+
+        $this->assertNotNull($assignment);
+    }
+
+    public function test_accept_action_records_ai_decision_audit(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create(['name' => 'Dora Lehmann']);
+        $this->runPipeline($shift);
+
+        Livewire::test(ListShifts::class)
+            ->callTableAction('accept', $shift)
+            ->assertHasNoTableActionErrors();
+
+        $decision = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::AiDecision)
+            ->first();
+
+        $this->assertNotNull($decision);
+        $this->assertSame('accepted', $decision->new_state['decision']);
     }
 
     public function test_accept_action_is_hidden_for_geschaeftsfuehrung(): void

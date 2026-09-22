@@ -46,15 +46,16 @@
             @if ($shifts->isEmpty())
                 <p class="mt-1 text-sm text-gray-500">Aktuell sind dir keine Schichten zugewiesen.</p>
             @else
-                <div class="mt-2 overflow-hidden rounded-xl border border-gray-200">
+                <div class="mt-2 overflow-x-auto rounded-xl border border-gray-200">
                     <table class="w-full text-left text-sm">
+                        <caption class="sr-only">Meine Schichten</caption>
                         <thead class="bg-gray-50 text-xs uppercase text-gray-500">
                             <tr>
-                                <th class="px-4 py-2">Schicht</th>
-                                <th class="px-4 py-2">Beginn</th>
-                                <th class="px-4 py-2">Ende</th>
-                                <th class="px-4 py-2">Abteilung</th>
-                                <th class="px-4 py-2">Status</th>
+                                <th scope="col" class="px-4 py-2">Schicht</th>
+                                <th scope="col" class="px-4 py-2">Beginn</th>
+                                <th scope="col" class="px-4 py-2">Ende</th>
+                                <th scope="col" class="px-4 py-2">Abteilung</th>
+                                <th scope="col" class="px-4 py-2">Status</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">

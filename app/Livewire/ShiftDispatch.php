@@ -2,13 +2,18 @@
 
 namespace App\Livewire;
 
+use App\Ai\Data\AiResult;
+use App\Ai\Enums\AiDecision;
+use App\Ai\Enums\AiDriver;
+use App\Ai\Services\AiDecisionAuditor;
 use App\Enums\FeedbackRating;
+use App\Models\Employee;
 use App\Models\Shift;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftOptimization;
 use App\Models\ShiftProposal;
-use App\Services\ShiftAssignmentService;
 use App\Services\ShiftOptimizationRunner;
+use App\Services\ShiftProposalAcceptService;
 use App\Services\ShiftRollbackService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
@@ -73,21 +78,26 @@ class ShiftDispatch extends Component
         $this->notice = 'Pipeline-Lauf abgeschlossen ('.$optimization->driver_used->label().', '.$optimization->execution_time_ms.' ms).';
     }
 
-    public function assignProposal(int $proposalId, ShiftAssignmentService $assignments): void
+    public function assignProposal(int $proposalId, ShiftProposalAcceptService $acceptService): void
     {
+        /** @var ShiftProposal $proposal */
         $proposal = $this->optimization()->proposals()->findOrFail($proposalId);
 
-        // Rechtematrix: Nur Dispositionsrollen im eigenen Abteilungs-Scope.
-        Gate::authorize('update', $proposal->optimization->shift);
+        /** @var Shift $shift */
+        $shift = $proposal->optimization->shift;
 
         // Editierter Benachrichtigungstext wird mit dem Vorschlag versioniert.
         if (array_key_exists($proposal->id, $this->drafts)) {
             $proposal->update(['draft_message' => $this->drafts[$proposal->id]]);
         }
 
-        $assignments->assign($proposal->optimization->shift, $proposal->employee);
+        // Gemeinsamer Accept-Pfad: Autorisierung + Zuweisung + AiDecision-Audit.
+        $acceptService->accept($shift, $proposal, actor: auth()->user());
 
-        $this->notice = $proposal->employee->name.' wurde zugewiesen (Ledger-Event geschrieben).';
+        /** @var Employee|null $assigned */
+        $assigned = $shift->fresh()?->assignedEmployee;
+
+        $this->notice = ($assigned->name ?? $proposal->employee->name).' wurde zugewiesen (Ledger-Event geschrieben).';
         $this->showRoiLink = (bool) auth()->user()?->role->seesMetrics();
     }
 
@@ -143,6 +153,8 @@ class ShiftDispatch extends Component
 
         $rollbacks->rollback($shift, $this->rollbackReason, $this->cancellationMessage);
 
+        $this->recordAiDecision(AiDecision::Rejected, $shift);
+
         $this->showRollbackModal = false;
         $this->rollbackReason = '';
         $this->cancellationMessage = null;
@@ -167,6 +179,33 @@ class ShiftDispatch extends Component
     private function optimization(): ShiftOptimization
     {
         return ShiftOptimization::findOrFail($this->optimizationId);
+    }
+
+    /**
+     * Schreibt eine AI-Entscheidung (akzeptiert/abgelehnt) in den Audit-Trail.
+     * Das AiResult wird aus der aktuell geladenen ShiftOptimization rekonstruiert
+     * (optimizationId statt newest-of-shift, damit parallele Läufe nicht die
+     * falsche Konversation auditieren) – conversation_id und Antworttext liegen
+     * im raw_response (T14-Ruling). Ohne Optimization bzw. conversation_id wird
+     * trotzdem auditiert (conversationId = null), kein stiller Abbruch.
+     */
+    private function recordAiDecision(AiDecision $decision, Shift $shift): void
+    {
+        $optimization = $this->optimizationId
+            ? ShiftOptimization::find($this->optimizationId)
+            : null;
+
+        $raw = $optimization->raw_response ?? [];
+        $conversationId = $raw['conversation_id'] ?? null;
+
+        $result = new AiResult(
+            agent: (string) ($raw['agent'] ?? 'shift-optimizer'),
+            driver: AiDriver::tryFrom((string) ($raw['driver'] ?? 'mock')) ?? AiDriver::Mock,
+            text: (string) ($raw['text'] ?? ''),
+            conversationId: is_string($conversationId) ? $conversationId : null,
+        );
+
+        app(AiDecisionAuditor::class)->record($decision, $result, auditable: $shift, actor: auth()->user());
     }
 
     private function loadDrafts(): void

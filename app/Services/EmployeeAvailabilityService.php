@@ -2,7 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\AuditEventType;
+use App\Audit\AuditLedger;
+use App\Audit\Enums\AuditEventType;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
 use App\Models\Shift;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 class EmployeeAvailabilityService
 {
     public function __construct(
-        private readonly ShiftAuditLedger $ledger,
+        private readonly AuditLedger $ledger,
     ) {}
 
     /**
@@ -50,7 +51,12 @@ class EmployeeAvailabilityService
                 $newState['availability_reason'] = $reason ?? 'Krankmeldung durch Mitarbeiter';
                 $newState['released_employee_id'] = $employee->id;
 
-                $this->ledger->record($shift, AuditEventType::AvailabilityReported, $previousState, $newState);
+                $this->ledger->record(
+                    eventType: AuditEventType::AvailabilityReported,
+                    previousState: $previousState,
+                    newState: $newState,
+                    auditable: $shift,
+                );
                 $released++;
             }
 

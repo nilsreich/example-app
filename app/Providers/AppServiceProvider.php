@@ -2,19 +2,24 @@
 
 namespace App\Providers;
 
-use App\Contracts\ShiftOptimizerPipelineInterface;
-use App\Enums\PipelineDriver;
+use App\Audit\AuditLedger;
+use App\Audit\Enums\AuditEventType;
+use App\Enums\UserRole;
 use App\Filament\Auth\RoleBasedLoginResponse;
-use App\Models\Setting;
-use App\Pipelines\LaravelAiSdkPipeline;
-use App\Pipelines\MockDeterministicPipeline;
+use App\Identity\EntraGroupRoleMapper;
+use App\Identity\EntraUserResolver;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\Microsoft\MicrosoftExtendSocialite;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,25 +28,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Pipeline Driver Switch: "mock" (Default, ohne API-Key) oder "live"
-        // (Laravel AI SDK). Umschaltbar im Admin-Panel (Settings-Page).
-        // Der Schema-Guard hält Artisan-Befehle vor der Settings-Migration lauffähig.
-        $this->app->bind(ShiftOptimizerPipelineInterface::class, function (): ShiftOptimizerPipelineInterface {
-            try {
-                $driver = Schema::hasTable('settings')
-                    ? Setting::aiPipelineDriver()
-                    : PipelineDriver::Mock;
-            } catch (\Throwable) {
-                $driver = PipelineDriver::Mock;
-            }
-
-            return $driver === PipelineDriver::Live
-                ? $this->app->make(LaravelAiSdkPipeline::class)
-                : $this->app->make(MockDeterministicPipeline::class);
-        });
-
         // Rollenbasierter Login-Redirect (GF → Überblick, Bereichsleiter → Schichten, Nutzer → Meine Schichten).
         $this->app->bind(LoginResponseContract::class, RoleBasedLoginResponse::class);
+
+        // GoBD-Export des Audit-Trails: nur Web-Admin und Geschäftsführung.
+        Gate::define('audit.export', static function (User $user): bool {
+            return in_array($user->role, [UserRole::WebAdmin, UserRole::Geschaeftsfuehrer], true);
+        });
+
+        // Entra-Gruppen-Mapping: config-gesteuert (pro Kundenprojekt anpassbar).
+        $this->app->bind(EntraGroupRoleMapper::class, fn (): EntraGroupRoleMapper => new EntraGroupRoleMapper(
+            mapping: config('entra.group_mapping', []),
+            fallbackRole: config('entra.fallback_role'),
+        ));
+        $this->app->bind(EntraUserResolver::class, fn (): EntraUserResolver => new EntraUserResolver(
+            $this->app->make(EntraGroupRoleMapper::class),
+            $this->app->make(AuditLedger::class),
+        ));
     }
 
     /**
@@ -50,6 +53,25 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // Entra-ID-Provider (SocialiteProviders\Microsoft) beim Socialite-Manager registrieren.
+        Event::listen(
+            SocialiteWasCalled::class,
+            MicrosoftExtendSocialite::class,
+        );
+
+        // GoBD: Jede Abmeldung (SSO wie lokal) landet im Audit-Trail.
+        Event::listen(Logout::class, static function (Logout $event): void {
+            if ($event->user instanceof User) {
+                app(AuditLedger::class)->record(
+                    eventType: AuditEventType::Logout,
+                    previousState: [],
+                    newState: ['email' => $event->user->email],
+                    auditable: $event->user,
+                    actor: $event->user,
+                );
+            }
+        });
     }
 
     /**

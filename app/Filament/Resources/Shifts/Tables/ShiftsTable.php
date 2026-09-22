@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Shifts\Tables;
 use App\Enums\ShiftStatus;
 use App\Models\Shift;
 use App\Models\ShiftProposal;
-use App\Services\ShiftAssignmentService;
 use App\Services\ShiftOptimizationRunner;
+use App\Services\ShiftProposalAcceptService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -86,12 +86,18 @@ class ShiftsTable
                     ->visible(fn (Shift $record): bool => self::canAccept($record))
                     ->requiresConfirmation()
                     ->modalHeading('Top-Vorschlag übernehmen?')
-                    ->modalDescription(fn (Shift $record): string => sprintf(
-                        '%s (%d %%) wird der Schicht "%s" verbindlich zugewiesen. Die Änderung wird revisionssicher im Forward-Ledger protokolliert.',
-                        self::topProposal($record)?->employee->name ?? '–',
-                        self::topProposal($record)?->score ?? 0,
-                        $record->title,
-                    ))
+                    ->modalDescription(function (Shift $record): string {
+                        $proposal = self::topProposal($record);
+                        $name = $proposal?->employee->name ?? '–';
+                        $score = $proposal->score ?? 0;
+
+                        return sprintf(
+                            '%s (%d %%) wird der Schicht "%s" verbindlich zugewiesen. Die Änderung wird revisionssicher im Forward-Ledger protokolliert.',
+                            $name,
+                            $score,
+                            $record->title,
+                        );
+                    })
                     ->modalSubmitActionLabel('Zuweisen')
                     ->action(function (Shift $record): void {
                         $proposal = self::topProposal($record);
@@ -100,10 +106,10 @@ class ShiftsTable
                             return;
                         }
 
-                        app(ShiftAssignmentService::class)->assign($record, $proposal->employee);
+                        app(ShiftProposalAcceptService::class)->accept($record, $proposal);
 
                         Notification::make()
-                            ->title($proposal->employee->name.' wurde zugewiesen')
+                            ->title(($proposal->employee->name ?? 'Kandidat').' wurde zugewiesen')
                             ->body('Ledger-Event geschrieben. Auswirkung im ROI-Dashboard sichtbar.')
                             ->success()
                             ->send();
@@ -120,11 +126,13 @@ class ShiftsTable
                     ->action(function (Shift $record): void {
                         $optimization = app(ShiftOptimizationRunner::class)->run($record);
                         $top = $optimization->proposals->first();
+                        $topName = $top?->employee->name ?? 'Kandidat';
+                        $topScore = $top->score ?? 0;
 
                         Notification::make()
                             ->title('Vorschläge berechnet')
                             ->body($top
-                                ? "Top-Match: {$top->employee->name} ({$top->score} %)"
+                                ? "Top-Match: {$topName} ({$topScore} %)"
                                 : 'Keine passenden Kandidaten gefunden.')
                             ->success()
                             ->send();
@@ -182,7 +190,7 @@ class ShiftsTable
 
         return $proposal === null
             ? null
-            : $proposal->employee->name.' · '.$proposal->score.' %';
+            : $proposal->employee?->name.' · '.$proposal->score.' %';
     }
 
     /**

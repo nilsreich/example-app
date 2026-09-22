@@ -1,0 +1,104 @@
+# Tasks: B2E-App-Template
+
+> Quelle: `tasks/plan.md` (Review-Gate offen). Tasks werden bei Freigabe abgearbeitet. Reihenfolge/Deps im Plan.
+
+## Phase 1: audit (Foundation)
+
+- [x] T1: audit_events-Schema + Hash-Kette
+    - Acceptance: Kette gültig; Einzeländerung bricht Kette; nur Write-Pfad
+    - Verify: `php artisan test --filter=Audit`; `composer test`
+- [x] T2: AuditLedger + Auditable-Trait + Append-only-Guard
+    - Acceptance: Ledger schreibt Ketten-korrekt; Rollback verkettet; Update/Delete scheitert; Query-Filter greifen
+    - Verify: `php artisan test --filter=Audit`; `composer test`
+- [x] T3: Audit-Export (CSV/JSON) + Filament-Ansicht
+    - Acceptance: Export policy-geschützt, Formate korrekt, Filter greifen
+    - Verify: `php artisan test --filter=Audit`; `composer test`
+
+**Checkpoint 1 (audit):** `composer test` grün; Kettenbruch nachweisbar; Review mit Nutzer.
+
+## Phase 2: identity
+
+- [x] T4: Entra-SSO-Grundgerüst (config/entra.php, Socialite-Microsoft, Routen, Controller)
+    - Acceptance: Redirect/Callback-Route erreichbar; lokaler Login unverändert
+    - Verify: `php artisan test --filter=Identity`; `composer test`
+- [x] T5: Provisioning + Mapping (entra_object_id, Resolver, GroupRoleMapper)
+    - Acceptance: Neu-Provisioning, Email-Wechsel-Match, Ablehnung ohne Berechtigung
+    - Verify: `php artisan test --filter=Identity` (Socialite-Fake); `composer test`
+- [x] T6: Audit-Anbindung + Hybrid-Absicherung + Rollen-Default-Set
+    - Acceptance: SSO-Events im Audit; lokaler Login/2FA/Passkeys grün
+    - Verify: `php artisan test --filter=Identity`; `composer test`
+
+**Checkpoint 2 (identity):** SSO-Pfad simuliert testbar; Hybrid-Login grün; Audit-Events nachweisbar; Review.
+
+## Phase 3: feedback
+
+- [x] T7: Domain-Extraktion nach app/Feedback + config/feedback.php
+    - Acceptance: Bestehende Feedback-Funktion unter neuem Namespace; abschaltbar
+    - Verify: `php artisan test --filter=Feedback`; `composer test`
+- [x] T8: Triage-Löschfunktion + Aufbewahrung (12 Mo) + Status-Änderungen ins Audit
+    - Acceptance: Statuswechsel im Audit; Löschung entfernt Report+Screenshot; Fristlauf testbar
+    - Verify: `php artisan test --filter=Feedback`; `composer test`
+
+**Checkpoint 3 (feedback):** e2e-Smoke grün; Triage im Audit; abschaltbar.
+
+## Phase 4: ai
+
+- [x] T9: AiAgent-Contract + AgentRegistry + Fake (Driver über Config)
+    - Acceptance: Registry konfig-gesteuert; Fake deterministisch; keine Keys in Tests
+    - Verify: `php artisan test --filter=Ai`; `composer test`
+- [x] T10: AgentConversation-Wrapper (Laravel-AI-Tabellen) + Persistenz
+    - Acceptance: Konversation + Messages persistiert (Fake)
+    - Verify: `php artisan test --filter=Ai`; `composer test`
+- [x] T11: AI-Entscheidungen im Audit (akzeptiert/abgelehnt, Result-Bezug)
+    - Acceptance: AI-Entscheidung + Konversations-Bezug im Audit-Trail
+    - Verify: `php artisan test --filter=Ai`; `composer test`
+
+**Checkpoint 4 (ai):** grün ohne Keys; Agenten ohne Template-Eingriff (docs/ai.md).
+
+## Phase 5: demo-shifts (Referenz)
+
+- [x] T12: Shift-Audit auf generisches Ledger (Adapter/Entfall)
+    - Acceptance: Zuweisung/Rollback → audit_events; Alt-Ledger unbenutzt
+    - Verify: `php artisan test --filter=Shift`; `composer test`
+- [x] T13: ShiftAuditEvent entfernen (drop-Migration, Code weg)
+    - Acceptance: kein Bezug mehr; audit_events trägt Historie
+    - Verify: `composer test`; `grep -rn ShiftAuditEvent app tests` leer
+- [x] T14: Shift-Demo auf neue Module (Regression + e2e)
+    - Acceptance: alle Demo-Abläufe unverändert funktionsfähig
+    - Verify: `composer test`; `npm run test:e2e`
+    - Playwright-e2e: lokale Verifikation beim Nutzer (Sandbox ohne Server/DB)
+
+**Checkpoint 5 (demo-shifts):** Playwright grün; keine Doppel-Implementierungen.
+
+## Phase 6: deploy (orthogonal)
+
+- [x] T15: Dockerfile.prod + compose.prod.yaml + Caddyfile.prod (Commit 5ef066b)
+    - Acceptance: compose config valide; Image-Build nicht-root; Deploy-Artefakte committet
+    - Verify: `docker compose -f compose.prod.yaml config --quiet` ok; Build-Smoke: Container uid=33 www-data, opcache/redis/intl geladen
+    - ⚠️ `.env.production.example` schreibblockiert (Safety-Net) → vollständige Vorlage in docs/deploy.md
+- [x] T16: setup-server.sh + deploy.sh + backup.sh + docs/deploy.md
+    - Acceptance: idempotent, headless; Doku EU/Backup/Rotation
+    - Verify: `bash -n scripts/*`; Env-Guard-Logik isoliert getestet (3 Fälle)
+- [x] T17: CI-Erweiterung (Compose-Validierung, Image-Build) + APP_LOCALE=de
+    - Acceptance: CI grün inkl. Build-Check (nur main); Locale-Standard de
+    - Verify: Suite unter APP_LOCALE=de 204/675 OK; compose config --quiet als CI-Schritt; docker-build-Job nur bei push
+
+**Checkpoint 6 (deploy):** Prod-Compose-Smoke; CI grün; docs/deploy.md vorhanden.
+
+## Phase 7: Template-Hülle (neutral)
+
+- [x] T18: Hülle neutralisieren (APP_NAME/Branding, Panel-Brand, welcome/auth-Views neutral; Demo als Referenz markiert)
+    - Acceptance: frische Instanz = neutrale Hülle; Demo-Domäne erreichbar gekennzeichnet
+    - Verify: `composer test`; Sichtprüfung
+    - ✔ APP_NAME="B2E-Template" (.env.example + config-Default); Dashboard-Head „Dispatch-Cockpit" ohne Marke; Login-Hint entfernt (AdminPanelProvider-Hook + View gelöscht); Login-/Welcome neutral; Demo-Zugänge nur noch im Demo-Szenario-Card + docs/demo.md; ShellNeutralityTest (4) + DashboardTest/FilamentPagesTest angepasst
+
+**Checkpoint 7 (Hülle):** neutrale Hülle; alle Tests grün.
+
+---
+
+## Entscheidungen (Plan-Review 2026-09-22)
+
+1. Template-Hülle neutralisieren (T18)
+2. shift_audit_events droppen (T13)
+3. CI-Image-Build nur main (T17)
+4. socialiteproviders/microsoft als Entra-Abdeckung (T4)

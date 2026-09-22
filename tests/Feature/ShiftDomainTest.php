@@ -2,15 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\AuditLedger;
+use App\Audit\Enums\AuditEventType;
 use App\Enums\PipelineDriver;
 use App\Enums\ShiftStatus;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftOptimization;
 use App\Models\ShiftProposal;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -80,36 +79,31 @@ class ShiftDomainTest extends TestCase
         $this->assertSame([95, 72], $optimization->proposals()->pluck('score')->all());
     }
 
-    public function test_audit_event_version_is_unique_per_shift(): void
+    public function test_audit_ledger_increments_version_per_shift(): void
     {
         $shift = Shift::factory()->create();
-        ShiftAuditEvent::create([
-            'shift_id' => $shift->id,
-            'version' => 1,
-            'event_type' => AuditEventType::InitialAssignment,
-        ]);
+        $ledger = app(AuditLedger::class);
 
-        $this->expectException(QueryException::class);
+        $first = $ledger->record(AuditEventType::InitialAssignment, [], ['status' => 'assigned'], auditable: $shift);
+        $second = $ledger->record(AuditEventType::ManualOverride, [], ['status' => 'assigned'], auditable: $shift);
 
-        ShiftAuditEvent::create([
-            'shift_id' => $shift->id,
-            'version' => 1,
-            'event_type' => AuditEventType::ManualOverride,
-        ]);
+        $this->assertSame(1, $first->version);
+        $this->assertSame(2, $second->version);
+        $this->assertSame($first->hash, $second->prev_hash);
+        $this->assertTrue($second->isChainValid());
     }
 
     public function test_audit_event_has_no_updated_at_column(): void
     {
-        $event = ShiftAuditEvent::create([
-            'shift_id' => Shift::factory()->create()->id,
-            'version' => 1,
-            'event_type' => AuditEventType::Rollback,
-        ]);
-
-        // created_at stammt aus dem DB-Default (useCurrent); daher refresh nötig.
-        $event->refresh();
+        $event = app(AuditLedger::class)->record(
+            AuditEventType::Rollback,
+            [],
+            ['status' => 'open'],
+            auditable: Shift::factory()->create(),
+        );
 
         $this->assertNotNull($event->created_at);
+        $this->assertNull($event->getUpdatedAtColumn());
         $this->assertFalse($event->isDirty());
         $this->assertSame(PipelineDriver::Mock->value, ShiftOptimization::factory()->create()->driver_used->value);
     }

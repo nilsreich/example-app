@@ -1,0 +1,130 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# Dockerfile.prod — Produktions-Image (Multi-Stage: composer → node → php-fpm)
+#
+# Ziel: reproduzierbares, nicht-root-Image für das B2E-Template.
+#   - Stage "deps":       Composer-Install ohne Dev-Abhängigkeiten (liefert
+#                         auch vendor/ für den Frontend-Build: Filament-/Flux-CSS)
+#   - Stage "frontend":   Vite-Assets bauen (node 22, glibc-basiert wegen
+#                         nativer Bindings wie @rollup/rollup-linux-x64-gnu)
+#   - Stage "runtime":    php:8.4-fpm + Extensions, App-Artifakte, USER www-data
+#
+# Grundsätze (SPEC-deploy.md):
+#   - kein Root-Prozess im App-Container
+#   - Secrets nur via ENV (nie im Image)
+#   - Storage/Bootstrap-Cache gehören www-data (Volumes erben die Ownership)
+# =============================================================================
+
+# --- Stage 1: Composer-Abhängigkeiten (ohne Dev) -----------------------------
+# Gleiche PHP-Version/Extensions wie die Runtime (php:8.4) — Plattform-Konsistenz
+# für package:discover / filament:upgrade während der Installation.
+FROM php:8.4-cli AS deps
+
+WORKDIR /app
+
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_NO_INTERACTION=1 \
+    COMPOSER_HOME=/tmp/composer
+
+# Composer-Binary aus dem offiziellen composer:2-Image übernehmen.
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+# Extensions, die Composer-Plattform-Checks verlangen (intl/pdo_mysql/zip) + Tooling.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libicu-dev \
+        libzip-dev \
+        git \
+        unzip \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Voller Quellcode: post-autoload-dump (package:discover, filament:upgrade)
+# braucht artisan; .dockerignore hält den Kontext schlank.
+COPY . .
+
+# Laravel benötigt die Laufzeit-Verzeichnisse bereits zur Installationszeit
+# (package:discover kompiliert Blade → valid cache path).
+RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/testing storage/framework/views storage/logs bootstrap/cache
+
+# Produktions-Abhängigkeiten. Optimized Autoloader; Skripte laufen (Paket-Erkennung).
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+# --- Stage 2: Frontend-Assets (Vite) -----------------------------------------
+FROM node:22-bookworm-slim AS frontend
+
+WORKDIR /app
+
+# Lockfile zuerst für Layer-Caching der npm-Installation.
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
+
+# Quellcode + vendor/ aus der deps-Stage: resources/css/*.css importiert
+# Filament-/Flux-CSS direkt aus vendor/ (theme.css, flux.css) — ohne den
+# Composer-Install schlägt das Vite-Build fehl (Can't resolve .../vendor/...).
+COPY . .
+COPY --from=deps /app/vendor /app/vendor
+
+# Build (vp = vite-plus). public/build wird vom Bundle erzeugt.
+RUN npm run build
+
+# --- Stage 3: PHP-FPM-Runtime -------------------------------------------------
+FROM php:8.4-fpm AS runtime
+
+# System-Abhängigkeiten + PHP-Extensions.
+# $PHPIZE_DEPS (Compiler etc.) wird nach dem pecl-Build wieder entfernt (schlankes Image).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        $PHPIZE_DEPS \
+        libicu-dev \
+    && docker-php-ext-install -j"$(nproc)" \
+        pdo_mysql \
+        intl \
+        opcache \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apt-get purge -y --auto-remove $PHPIZE_DEPS \
+    && rm -rf /var/lib/apt/lists/*
+
+# PHP-FPM: Container-ENV an Laravel durchreichen (Standard wäre clear_env=yes,
+# was ENV-Variablen aus compose/.env für PHP-FPM-Worker ausblendet).
+RUN printf '[www]\nclear_env = no\n' > /usr/local/etc/php-fpm.d/zz-container-env.conf
+
+# PHP-Limits (Filament/Livewire-tauglich, Upload-lastig).
+RUN printf 'memory_limit=256M\npost_max_size=20M\nupload_max_filesize=20M\nmax_execution_time=60\n' \
+        > /usr/local/etc/php/conf.d/zz-app-limits.ini
+
+# OPcache für Produktion: statische Dateien, keine Re-Validierung zur Laufzeit.
+# Voraussetzung: Deployment führt `php artisan optimize` aus (siehe docs/deploy.md).
+RUN printf 'opcache.enable=1\nopcache.memory_consumption=128\nopcache.max_accelerated_files=20000\nopcache.validate_timestamps=0\n' \
+        > /usr/local/etc/php/conf.d/zz-opcache.ini
+
+WORKDIR /var/www/html
+
+# App-Code + Composer-Vendoren (aus Stage "deps") + gebaute Assets.
+COPY --from=deps /app /var/www/html
+COPY --from=frontend /app/public/build /var/www/html/public/build
+
+# Beschreibbare Verzeichnisse (Laravel-Laufzeit). Named Volumes in compose
+# erben diese Struktur + Ownership beim ersten Mount (Volume-Initialisierung).
+RUN mkdir -p \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/testing \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+    && chown -R www-data:www-data \
+        /var/www/html/storage \
+        /var/www/html/bootstrap/cache
+
+# storage:link — öffentliche Uploads (z. B. Screenshots) unter /storage/servebar.
+RUN ln -s /var/www/html/storage/app/public /var/www/html/public/storage
+
+# Nicht-Root: Laravel läuft als www-data (uid 82).
+USER www-data
+
+EXPOSE 9000
+
+# Basisimage-ENTRYPOINT/CMD (docker-php-entrypoint php-fpm) bleibt aktiv.

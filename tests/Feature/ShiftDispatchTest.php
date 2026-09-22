@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\FeedbackRating;
 use App\Enums\ShiftStatus;
 use App\Livewire\ShiftDispatch;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\ShiftProposal;
 use App\Models\User;
@@ -57,7 +57,7 @@ class ShiftDispatchTest extends TestCase
 
         $this->assertSame(ShiftStatus::Assigned, $shift->fresh()->status);
         $this->assertSame('Hallo, bitte einspringen!', $proposalId ? ShiftProposal::find($proposalId)->draft_message : null);
-        $this->assertSame(AuditEventType::InitialAssignment, ShiftAuditEvent::first()->event_type);
+        $this->assertSame(AuditEventType::InitialAssignment, AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $shift->id)->first()->event_type);
     }
 
     public function test_positive_feedback_is_recorded_directly(): void
@@ -121,6 +121,89 @@ class ShiftDispatchTest extends TestCase
             ->assertSee('zurückgerollt');
 
         $this->assertSame(ShiftStatus::Open, $shift->fresh()->status);
-        $this->assertSame(AuditEventType::Rollback, ShiftAuditEvent::latest('version')->first()->event_type);
+
+        // Gezielte Suche: das AiDecision-Event wird nach dem Rollback-Ereignis
+        // auditiert, `latest('version')` wäre jetzt das ai_decision-Event.
+        $rollback = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::Rollback->value)
+            ->first();
+
+        $this->assertNotNull($rollback);
+    }
+
+    public function test_assign_proposal_records_ai_decision_accepted(): void
+    {
+        $shift = Shift::factory()->create();
+        $employee = Employee::factory()->create();
+
+        $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
+        $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
+
+        $component->call('assignProposal', $proposalId);
+
+        $event = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::AiDecision)
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('accepted', $event->new_state['decision']);
+        $this->assertNotNull($event->new_state['conversation_id'] ?? null);
+        $this->assertSame($shift->id, $event->auditable_id);
+    }
+
+    public function test_rollback_records_ai_decision_rejected(): void
+    {
+        $shift = Shift::factory()->create();
+        Employee::factory()->create();
+
+        $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
+        $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
+        $component->call('assignProposal', $proposalId);
+
+        $component
+            ->set('rollbackReason', 'Mitarbeiter erneut erkrankt')
+            ->call('submitRollback');
+
+        $event = AuditEvent::where('auditable_type', Shift::class)
+            ->where('auditable_id', $shift->id)
+            ->where('event_type', AuditEventType::AiDecision)
+            ->latest('version')
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('rejected', $event->new_state['decision']);
+    }
+
+    public function test_feedback_modal_and_emoji_buttons_are_accessible(): void
+    {
+        $shift = Shift::factory()->create(['required_qualifications' => []]);
+        Employee::factory()->create();
+
+        $component = Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])->call('runOptimization');
+        $proposalId = Shift::find($shift->id)->optimizations()->first()->proposals()->first()->id;
+
+        $component
+            ->assertSee('role="status"', escape: false)
+            ->assertSee('aria-label="Als hilfreich bewerten"', escape: false)
+            ->assertSee('aria-label="Als nicht hilfreich bewerten"', escape: false)
+            ->call('openFeedback', $proposalId, FeedbackRating::Negative->value)
+            ->assertSee('role="dialog"', escape: false)
+            ->assertSee('aria-modal="true"', escape: false)
+            ->assertSee('aria-labelledby="feedback-modal-title"', escape: false)
+            ->assertSee('id="feedback-modal-title"', escape: false);
+    }
+
+    public function test_rollback_modal_is_accessible(): void
+    {
+        $shift = Shift::factory()->assigned()->create();
+
+        Livewire::test(ShiftDispatch::class, ['shiftId' => $shift->id])
+            ->set('showRollbackModal', true)
+            ->assertSee('role="dialog"', escape: false)
+            ->assertSee('aria-modal="true"', escape: false)
+            ->assertSee('aria-labelledby="rollback-modal-title"', escape: false)
+            ->assertSee('id="rollback-modal-title"', escape: false);
     }
 }

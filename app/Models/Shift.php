@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use Database\Factories\ShiftFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -51,6 +53,8 @@ class Shift extends Model
 
     /**
      * Aktuell zugewiesener Mitarbeiter (null = unbesetzt).
+     *
+     * @return BelongsTo<Employee, $this>
      */
     public function assignedEmployee(): BelongsTo
     {
@@ -59,6 +63,8 @@ class Shift extends Model
 
     /**
      * Alle Optimierungsläufe (Mock + Live) zu dieser Schicht, neueste zuerst.
+     *
+     * @return HasMany<ShiftOptimization, $this>
      */
     public function optimizations(): HasMany
     {
@@ -67,6 +73,8 @@ class Shift extends Model
 
     /**
      * Jüngster Pipeline-Lauf (für die Top-Match-Spalte in der Tabelle).
+     *
+     * @return HasOne<ShiftOptimization, $this>
      */
     public function latestOptimization(): HasOne
     {
@@ -75,14 +83,20 @@ class Shift extends Model
 
     /**
      * Vollständiger Forward-Ledger aller Zustandsänderungen, chronologisch.
+     * Schreibzugriffe laufen ausschließlich über das AuditLedger-Modul.
+     *
+     * @return MorphMany<AuditEvent, $this>
      */
-    public function auditEvents(): HasMany
+    public function auditEvents(): MorphMany
     {
-        return $this->hasMany(ShiftAuditEvent::class)->orderBy('version');
+        return $this->morphMany(AuditEvent::class, 'auditable')->orderBy('version');
     }
 
     /**
      * Offene, zu disponierende Schichten.
+     *
+     * @param  Builder<Shift>  $query
+     * @return Builder<Shift>
      */
     #[Scope]
     protected function open(Builder $query): Builder

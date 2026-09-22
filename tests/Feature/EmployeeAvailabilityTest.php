@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditEventType;
+use App\Audit\Enums\AuditEventType;
+use App\Audit\Models\AuditEvent;
 use App\Enums\ShiftStatus;
 use App\Livewire\MyShiftsBoard;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\User;
 use App\Services\EmployeeAvailabilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,7 +45,7 @@ class EmployeeAvailabilityTest extends TestCase
         $this->assertNull($future->fresh()->assigned_employee_id);
         $this->assertSame(ShiftStatus::Assigned, $past->fresh()->status);
 
-        $event = ShiftAuditEvent::latest('version')->first();
+        $event = AuditEvent::where('auditable_type', Shift::class)->where('auditable_id', $future->id)->latest('version')->first();
         $this->assertSame(AuditEventType::AvailabilityReported, $event->event_type);
         $this->assertSame('Grippe', $event->new_state['availability_reason']);
         $this->assertSame($employee->id, $event->new_state['released_employee_id']);
@@ -89,5 +89,18 @@ class EmployeeAvailabilityTest extends TestCase
         Livewire::test(MyShiftsBoard::class)
             ->assertSee('Meine Schicht')
             ->assertDontSee('Fremde Schicht');
+    }
+
+    public function test_my_shifts_table_is_accessible(): void
+    {
+        $employee = $this->employeeWithUser();
+        Shift::factory()->assigned()->create(['assigned_employee_id' => $employee->id, 'title' => 'Meine Schicht']);
+
+        $this->actingAs($employee->user);
+
+        Livewire::test(MyShiftsBoard::class)
+            ->assertSee('overflow-x-auto', escape: false)
+            ->assertSee('scope="col"', escape: false)
+            ->assertSee('<caption class="sr-only">Meine Schichten</caption>', escape: false);
     }
 }

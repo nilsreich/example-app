@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Audit\Filament\Pages\AuditLogPage;
 use App\Filament\Widgets\FeedbackChartWidget;
 use App\Filament\Widgets\RoiStatsWidget;
 use App\Filament\Widgets\RoleGuideWidget;
@@ -15,7 +16,6 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -23,7 +23,6 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -40,9 +39,12 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
+            ->discoverResources(in: app_path('Feedback/Filament/Resources'), for: 'App\Feedback\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
+            ->discoverPages(in: app_path('Feedback/Filament/Pages'), for: 'App\Feedback\Filament\Pages')
             ->pages([
                 Dashboard::class,
+                AuditLogPage::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
@@ -65,14 +67,6 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
-            ->renderHook(
-                PanelsRenderHook::BODY_END,
-                fn (): string => Blade::render('<x-feedback-widget />'),
-            )
-            ->renderHook(
-                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
-                fn (): string => Blade::render("@include('filament.auth.login-demo-hint')"),
-            )
             ->authMiddleware([
                 Authenticate::class,
             ]);

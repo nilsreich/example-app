@@ -1,8 +1,9 @@
 <?php
 
+use App\Audit\Http\Controllers\AuditExportController;
+use App\Feedback\Http\Controllers\FeedbackReportController;
+use App\Feedback\Http\Controllers\FeedbackScreenshotController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\FeedbackReportController;
-use App\Http\Controllers\FeedbackScreenshotController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -19,6 +20,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('feedback/{feedbackReport}/screenshot', FeedbackScreenshotController::class)
         ->name('feedback.screenshot');
+
+    // GoBD-Export des Audit-Trails – Berechtigung via Gate `audit.export`.
+    Route::get('audit/export', AuditExportController::class)->name('audit.export');
 });
 
 require __DIR__.'/settings.php';

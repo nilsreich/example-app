@@ -24,14 +24,14 @@ class FilamentPagesTest extends TestCase
         $this->get('/admin/shifts')->assertRedirect('/admin/login');
     }
 
-    public function test_login_page_shows_demo_credentials(): void
+    public function test_login_page_is_neutral(): void
     {
         $this->get('/admin/login')
             ->assertOk()
-            ->assertSee('Demo-Zugänge')
-            ->assertSee('admin@kiventro.de')
-            ->assertSee('mitarbeiter@kiventro.de')
-            ->assertSee('kiventro-demo');
+            ->assertDontSee('Demo-Zugänge')
+            ->assertDontSee('admin@kiventro.de')
+            ->assertDontSee('mitarbeiter@kiventro.de')
+            ->assertDontSee('kiventro-demo');
     }
 
     public function test_dashboard_loads_with_widgets(): void

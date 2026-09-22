@@ -1,0 +1,49 @@
+# Build-Kontext schlank halten: diese Pfade werden nicht ins Image kopiert.
+# Notwendige Artefakte (vendor, public/build) entstehen in den Multi-Stage-Steps.
+
+# Versionierung / Tooling
+.git
+.github
+.superpowers
+
+# Abhängigkeiten (werden in Multi-Stage-Steps installiert/gebaut)
+node_modules
+vendor
+public/build
+public/hot
+public/storage
+
+# Laufzeit-Daten (werden als Volumes gemountet)
+storage/app/private
+storage/app/public
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/testing
+storage/framework/views
+storage/pail
+
+# Konfiguration & Secrets — niemals ins Image
+.env
+.env.*
+!*.example
+auth.json
+
+# Dev-/Test-Artefakte
+tests
+tasks
+docs
+playwright-report
+test-results
+.phpunit.cache
+.phpunit.result.cache
+phpunit.xml
+phpstan.neon
+pint.json
+
+# Host-Tooling
+compose.yaml
+Dockerfile
+Caddyfile
+scripts
+Makefile

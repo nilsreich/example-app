@@ -12,7 +12,7 @@
     </div>
 
     @if ($notice)
-        <div class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div role="status" aria-live="polite" class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             {{ $notice }}
             @if ($showRoiLink)
                 <a href="{{ url('/admin') }}" class="ml-1 font-semibold underline">Auswirkung im ROI-Dashboard ansehen →</a>
@@ -91,9 +91,9 @@
                             class="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-gray-700">
                             Schicht zuweisen
                         </button>
-                        <button type="button" wire:click="openFeedback({{ $proposal->id }}, 'positive')" title="Hilfreich"
+                        <button type="button" wire:click="openFeedback({{ $proposal->id }}, 'positive')" title="Hilfreich" aria-label="Als hilfreich bewerten"
                             class="rounded-lg border px-2.5 py-1.5 text-sm hover:bg-green-50">👍</button>
-                        <button type="button" wire:click="openFeedback({{ $proposal->id }}, 'negative')" title="Nicht hilfreich"
+                        <button type="button" wire:click="openFeedback({{ $proposal->id }}, 'negative')" title="Nicht hilfreich" aria-label="Als nicht hilfreich bewerten"
                             class="rounded-lg border px-2.5 py-1.5 text-sm hover:bg-red-50">👎</button>
                         @if ($proposal->feedbacks->isNotEmpty())
                             <span class="text-xs text-gray-500">{{ $proposal->feedbacks->count() }}× bewertet</span>
@@ -108,9 +108,11 @@
 
     {{-- Negativ-Feedback-Modal --}}
     @if ($showFeedbackModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title"
+            wire:keydown.escape.window="$set('showFeedbackModal', false)">
             <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-                <h3 class="text-base font-semibold">Warum war der Vorschlag nicht hilfreich?</h3>
+                <h3 id="feedback-modal-title" class="text-base font-semibold">Warum war der Vorschlag nicht hilfreich?</h3>
                 <label class="mt-4 block text-xs font-medium text-gray-500">Kategorie *</label>
                 <select wire:model="feedbackCategory" class="mt-1 w-full rounded-lg border-gray-300 text-sm">
                     <option value="">Bitte wählen …</option>
@@ -133,9 +135,11 @@
 
     {{-- Rollback-Modal --}}
     @if ($showRollbackModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            role="dialog" aria-modal="true" aria-labelledby="rollback-modal-title"
+            wire:keydown.escape.window="$set('showRollbackModal', false)">
             <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-                <h3 class="text-base font-semibold">Zuweisung zurückrollen (Forward-Rollback)</h3>
+                <h3 id="rollback-modal-title" class="text-base font-semibold">Zuweisung zurückrollen (Forward-Rollback)</h3>
                 <p class="mt-1 text-xs text-gray-500">Es wird ein neues Rollback-Event angehängt – die Historie bleibt erhalten.</p>
                 <label class="mt-4 block text-xs font-medium text-gray-500">Rückrollgrund *</label>
                 <input type="text" wire:model="rollbackReason" class="mt-1 w-full rounded-lg border-gray-300 text-sm"

@@ -21,6 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
  * @property int $id
+ * @property string|null $entra_object_id
  * @property string $name
  * @property string $email
  * @property UserRole $role
@@ -57,6 +58,8 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
 
     /**
      * Mitarbeiter-Datensatz zur Login-Rolle (nur für Self-Service-Rolle "nutzer").
+     *
+     * @return HasOne<Employee, $this>
      */
     public function employee(): HasOne
     {

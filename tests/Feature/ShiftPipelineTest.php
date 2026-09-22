@@ -3,15 +3,12 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\ShiftOptimizerAgent;
-use App\Contracts\ShiftOptimizerPipelineInterface;
-use App\Data\OptimizationResult;
+use App\Ai\Services\AgentRegistry;
 use App\Enums\PipelineDriver;
 use App\Models\Employee;
 use App\Models\Setting;
 use App\Models\Shift;
-use App\Pipelines\LaravelAiSdkPipeline;
-use App\Pipelines\MockDeterministicPipeline;
-use App\Services\ShiftCandidateContextBuilder;
+use App\Services\ShiftOptimizationRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,64 +16,47 @@ class ShiftPipelineTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function mockPipeline(): MockDeterministicPipeline
+    public function test_registry_resolves_shift_optimizer_agent_class(): void
     {
-        // Latenz 0 für schnelle Tests; Produktiv-Default bleibt 800 ms.
-        return new MockDeterministicPipeline(new ShiftCandidateContextBuilder, 0);
+        $this->assertInstanceOf(ShiftOptimizerAgent::class, app(AgentRegistry::class)->agent('shift-optimizer'));
     }
 
-    public function test_container_resolves_mock_pipeline_by_default(): void
-    {
-        $this->assertInstanceOf(MockDeterministicPipeline::class, app(ShiftOptimizerPipelineInterface::class));
-    }
-
-    public function test_container_resolves_live_pipeline_when_configured(): void
-    {
-        Setting::set(Setting::AI_PIPELINE_MODE, PipelineDriver::Live->value);
-
-        $this->assertInstanceOf(LaravelAiSdkPipeline::class, app(ShiftOptimizerPipelineInterface::class));
-    }
-
-    public function test_unknown_pipeline_mode_falls_back_to_mock(): void
-    {
-        Setting::set(Setting::AI_PIPELINE_MODE, 'skynet');
-
-        $this->assertInstanceOf(MockDeterministicPipeline::class, app(ShiftOptimizerPipelineInterface::class));
-    }
-
-    public function test_mock_pipeline_is_deterministic(): void
+    public function test_mock_runner_is_deterministic(): void
     {
         $shift = Shift::factory()->create(['required_qualifications' => ['Staplerschein']]);
         Employee::factory()->create(['qualifications' => ['Staplerschein']]);
 
-        $first = $this->mockPipeline()->optimize($shift);
-        $second = $this->mockPipeline()->optimize($shift);
+        $first = app(ShiftOptimizationRunner::class)->run($shift);
+        $second = app(ShiftOptimizationRunner::class)->run($shift);
 
-        $this->assertInstanceOf(OptimizationResult::class, $first);
-        $this->assertSame(PipelineDriver::Mock, $first->driver);
+        $this->assertSame(PipelineDriver::Mock, $first->driver_used);
         $this->assertSame(
-            array_map(fn ($match) => $match->toArray(), $first->matches),
-            array_map(fn ($match) => $match->toArray(), $second->matches),
+            $first->proposals->map(fn ($match) => [$match->employee_id, $match->score])->all(),
+            $second->proposals->map(fn ($match) => [$match->employee_id, $match->score])->all(),
         );
+        $this->assertNotEmpty($first->proposals);
     }
 
-    public function test_mock_pipeline_prefers_fully_qualified_candidates(): void
+    public function test_mock_runner_prefers_fully_qualified_candidates(): void
     {
         $shift = Shift::factory()->create(['required_qualifications' => ['Staplerschein', 'Ersthelfer']]);
         $unqualified = Employee::factory()->create(['name' => 'Ohne Schein', 'qualifications' => []]);
         $qualified = Employee::factory()->create(['name' => 'Mit Schein', 'qualifications' => ['Staplerschein', 'Ersthelfer']]);
 
-        $result = $this->mockPipeline()->optimize($shift);
+        $optimization = app(ShiftOptimizationRunner::class)->run($shift);
+        $proposals = $optimization->proposals;
 
-        $this->assertSame($qualified->id, $result->matches[0]->employeeId);
-        $this->assertGreaterThan($result->matches[1]->score, $result->matches[0]->score);
-        $this->assertNotEmpty($result->matches[0]->matchReasons);
-        $this->assertNotEmpty($result->matches[0]->draftMessage);
-        $this->assertContains($unqualified->id, array_map(fn ($match) => $match->employeeId, $result->matches));
+        $this->assertSame($qualified->id, $proposals->first()->employee_id);
+        $this->assertGreaterThan($proposals->get(1)->score, $proposals->first()->score);
+        $this->assertNotEmpty($proposals->first()->match_reasons);
+        $this->assertNotEmpty($proposals->first()->draft_message);
+        $this->assertContains($unqualified->id, $proposals->pluck('employee_id')->all());
     }
 
-    public function test_live_pipeline_maps_structured_response_and_filters_unknown_ids(): void
+    public function test_live_runner_maps_structured_response_and_filters_unknown_ids(): void
     {
+        Setting::set(Setting::AI_PIPELINE_MODE, PipelineDriver::Live->value);
+
         $shift = Shift::factory()->create();
         $employee = Employee::factory()->create();
 
@@ -93,12 +73,27 @@ class ShiftPipelineTest extends TestCase
             ],
         ]]);
 
-        $result = app(LaravelAiSdkPipeline::class)->optimize($shift);
+        $optimization = app(ShiftOptimizationRunner::class)->run($shift);
 
-        $this->assertSame(PipelineDriver::Live, $result->driver);
-        $this->assertCount(1, $result->matches);
-        $this->assertSame($employee->id, $result->matches[0]->employeeId);
-        $this->assertSame(100, $result->matches[0]->score);
+        $this->assertSame(PipelineDriver::Live, $optimization->driver_used);
+        $this->assertCount(1, $optimization->proposals);
+        $this->assertSame($employee->id, $optimization->proposals->first()->employee_id);
+        $this->assertSame(100, $optimization->proposals->first()->score);
         ShiftOptimizerAgent::assertPromptedTimes(1);
+    }
+
+    public function test_runner_persists_conversation_for_audit_trail(): void
+    {
+        $shift = Shift::factory()->create();
+        Employee::factory()->create();
+
+        $optimization = app(ShiftOptimizationRunner::class)->run($shift);
+
+        $this->assertNotNull($optimization->raw_response['conversation_id'] ?? null);
+        $this->assertDatabaseHas('agent_conversations', [
+            'title' => 'shift-optimizer',
+            'participant_type' => Shift::class,
+            'participant_id' => $shift->id,
+        ]);
     }
 }

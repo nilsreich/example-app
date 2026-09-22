@@ -1,0 +1,176 @@
+# =============================================================================
+# compose.prod.yaml — Produktions-Docker-Kit (B2E-Template)
+#
+# Dienste: app (php-fpm) · worker (queue) · caddy (Reverse-Proxy, auto-HTTPS) · mysql:8.4 · redis
+# - Konfiguration ausschließlich über .env (aus .env.production.example erzeugt)
+# - Secrets nur via ENV, niemals im Repo/Image
+# - DB/Redis sind NUR im internen Netz (keine veröffentlichten Ports)
+# - kein Root im App-Container (USER www-data, siehe Dockerfile.prod)
+# - Bild-Validierung: docker compose -f compose.prod.yaml config
+# =============================================================================
+
+name: b2e-template
+
+x-db-env: &db-env
+    MYSQL_DATABASE: ${MYSQL_DATABASE:-laravel}
+    MYSQL_USER: ${MYSQL_USER:-laravel}
+    MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
+    MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+        image: b2e-template/app:prod
+        init: true
+        restart: unless-stopped
+        # Wie in SPEC-deploy.md: Konfiguration per ENV. env_file ist optional, damit
+        # `docker compose config` auch ohne .env valide bleibt (CI-Validierung).
+        env_file:
+            - path: .env
+              required: false
+        environment:
+            # Sicherheits-Rails: Produktion erzwingen, Debug per env_file abschaltbar.
+            APP_ENV: production
+            APP_DEBUG: "false"
+        depends_on:
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        volumes:
+            # Persistenter Privat-Storage (Screenshots/Uploads/Logs/Sessions-Cache).
+            # Named Volume initialisiert beim ersten Mount aus dem Image (www-data).
+            - app-storage:/var/www/html/storage
+        expose:
+            - "9000"
+        networks:
+            - b2e
+        healthcheck:
+            # FastCGI-Port prüfen (php-fpm lebt) — ohne Zusatzpakete im Image.
+            test:
+                [
+                    "CMD-SHELL",
+                    'php -r ''exit(@fsockopen("127.0.0.1", 9000, $$e, $$m, 2) ? 0 : 1);''',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
+
+    worker:
+        # Queue-Worker (Checkpoint-6: sofort mitliefern). Gleiches Image/Env wie app;
+        # verarbeitet QUEUE_CONNECTION=database-Jobs asynchron.
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+        image: b2e-template/app:prod
+        init: true
+        restart: unless-stopped
+        command:
+            [
+                "php",
+                "artisan",
+                "queue:work",
+                "--sleep=3",
+                "--tries=3",
+                "--max-time=3600",
+            ]
+        env_file:
+            - path: .env
+              required: false
+        environment:
+            APP_ENV: production
+            APP_DEBUG: "false"
+        depends_on:
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        volumes:
+            # Identischer Privat-Storage wie app (Jobs schreiben ggf. Dateien).
+            - app-storage:/var/www/html/storage
+        networks:
+            - b2e
+
+    caddy:
+        image: caddy:2-alpine
+        restart: unless-stopped
+        environment:
+            # Für auto-HTTPS (Let's Encrypt). APP_DOMAIN default lokal für Smoke-Tests.
+            APP_DOMAIN: ${APP_DOMAIN:-localhost}
+            ACME_EMAIL: ${ACME_EMAIL:-}
+        ports:
+            - "80:80"
+            - "443:443"
+            - "443:443/udp"
+        volumes:
+            - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+            - caddy-data:/data
+            - caddy-config:/config
+        depends_on:
+            app:
+                condition: service_healthy
+        networks:
+            - b2e
+        healthcheck:
+            # Caddy nur "healthy", wenn die App über den Proxy antwortet (/up-Route).
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget -q -O /dev/null http://127.0.0.1/up || exit 1",
+                ]
+            interval: 15s
+            timeout: 5s
+            retries: 6
+            start_period: 30s
+
+    mysql:
+        image: mysql:8.4
+        restart: unless-stopped
+        environment: *db-env
+        volumes:
+            - db-data:/var/lib/mysql
+        networks:
+            - b2e
+        healthcheck:
+            # $$ verhindert Host-Interpolation; genutzt wird die Container-ENV.
+            test:
+                [
+                    "CMD-SHELL",
+                    "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 30s
+
+    redis:
+        image: redis:7-alpine
+        restart: unless-stopped
+        volumes:
+            - redis-data:/data
+        networks:
+            - b2e
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 3s
+            retries: 6
+
+networks:
+    b2e:
+        driver: bridge
+
+volumes:
+    app-storage:
+        driver: local
+    db-data:
+        driver: local
+    redis-data:
+        driver: local
+    caddy-data:
+        driver: local
+    caddy-config:
+        driver: local

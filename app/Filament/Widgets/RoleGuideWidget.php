@@ -2,15 +2,15 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\FeedbackStatus;
 use App\Enums\PipelineDriver;
 use App\Enums\ShiftStatus;
-use App\Filament\Pages\FeedbackSettings;
+use App\Feedback\Enums\FeedbackStatus;
+use App\Feedback\Filament\Pages\FeedbackSettings;
+use App\Feedback\Filament\Resources\FeedbackReports\FeedbackReportResource;
+use App\Feedback\Models\FeedbackReport;
 use App\Filament\Pages\MyShifts;
 use App\Filament\Pages\PipelineSettings;
-use App\Filament\Resources\FeedbackReports\FeedbackReportResource;
 use App\Filament\Resources\Shifts\ShiftResource;
-use App\Models\FeedbackReport;
 use App\Models\Setting;
 use App\Models\Shift;
 use Filament\Notifications\Notification;

@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Audit\Models\AuditEvent;
 use App\Enums\UserRole;
 use App\Models\Employee;
 use App\Models\Shift;
-use App\Models\ShiftAuditEvent;
 use App\Models\ShiftFeedback;
 use App\Models\User;
 use App\Services\RoiCalculatorService;
@@ -54,7 +54,7 @@ class KiventroDemoSeederTest extends TestCase
         // 3 Top-Übernahmen, davon 1 mit Negativ-Feedback → 2/4 ohne Nacharbeit.
         $this->assertSame(50.0, $metrics->automationRate());
         $this->assertSame(3, ShiftFeedback::count());
-        $this->assertSame(4, ShiftAuditEvent::count());
+        $this->assertSame(4, AuditEvent::where('auditable_type', Shift::class)->count());
         $this->assertNotNull($metrics->averageConfidence());
     }
 

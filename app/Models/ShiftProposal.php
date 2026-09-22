@@ -42,16 +42,25 @@ class ShiftProposal extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<ShiftOptimization, $this>
+     */
     public function optimization(): BelongsTo
     {
         return $this->belongsTo(ShiftOptimization::class, 'optimization_id');
     }
 
+    /**
+     * @return BelongsTo<Employee, $this>
+     */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * @return HasMany<ShiftFeedback, $this>
+     */
     public function feedbacks(): HasMany
     {
         return $this->hasMany(ShiftFeedback::class, 'proposal_id')->latest();
